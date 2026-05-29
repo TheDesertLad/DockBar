@@ -1,3 +1,6 @@
+//File: TaskbarWindow.swift
+//This was built using Microsoft Copilot
+
 import AppKit
 import Combine
 

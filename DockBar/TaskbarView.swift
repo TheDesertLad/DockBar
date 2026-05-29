@@ -1,3 +1,6 @@
+//File: TaskbarView.swift
+//This was built using Microsoft Copilot
+
 import AppKit
 
 class TaskbarView: NSVisualEffectView {

@@ -1,3 +1,6 @@
+//File: TaskbarController.swift
+//This was built using Microsoft Copilot
+
 import AppKit
 
 class TaskbarController {

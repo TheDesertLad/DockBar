@@ -1,3 +1,6 @@
+//File: SettingsView.swift
+//This was built using Microsoft Copilot
+
 import SwiftUI
 
 struct SettingsView: View {
