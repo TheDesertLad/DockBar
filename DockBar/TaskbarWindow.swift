@@ -1,193 +1,148 @@
 import AppKit
-import SwiftUI
 import Combine
 
 class TaskbarWindow: NSWindow {
 
-    private var visualEffectView = NSVisualEffectView()
+    static let baseHeightPoints: CGFloat = 48
     private var cancellables = Set<AnyCancellable>()
+    private var taskbarView: TaskbarView!
 
-    private let controller = TaskbarController.shared
-    private let taskbarHeight: CGFloat = 48
+    // MARK: - Init
+    convenience init() {
+        let screen = NSScreen.main ?? NSScreen.screens.first!
+        let frame = TaskbarWindow.computeFrame(for: screen)
 
-    init() {
-        let screenFrame = NSScreen.main?.frame ?? .zero
-        let frame = NSRect(
-            x: 0,
-            y: 0,
-            width: screenFrame.width,
-            height: taskbarHeight
-        )
-
-        super.init(
+        self.init(
             contentRect: frame,
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
 
-        isOpaque = false
+        configure()
+        setupAppearanceObserver()
+        setupBlurObserver()
+    }
+
+    // MARK: - Window Setup
+    private func configure() {
         backgroundColor = .clear
+        isOpaque = false
+
         level = .statusBar
         ignoresMouseEvents = false
-        collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
 
-        setupVisualEffect()
-        setupContentContainer()
-        setupObservers()
-        setupScreenChangeObserver()
-        positionAtBottom()
+        collectionBehavior = [
+            .canJoinAllSpaces,
+            .stationary,
+            .fullScreenAuxiliary
+        ]
+
+        isMovable = false
+        isMovableByWindowBackground = false
+
+        // Install vibrant view
+        taskbarView = TaskbarView(frame: contentView!.bounds)
+        taskbarView.autoresizingMask = [.width, .height]
+        self.contentView = taskbarView
     }
 
-    private func setupVisualEffect() {
-        visualEffectView = NSVisualEffectView(frame: contentView!.bounds)
-        visualEffectView.autoresizingMask = [.width, .height]
-        visualEffectView.blendingMode = .behindWindow
-        visualEffectView.state = .active
-        visualEffectView.material = .hudWindow
+    // MARK: - Frame Calculation
+    static func computeFrame(for screen: NSScreen) -> NSRect {
+        let screenFrame = screen.frame
+        let heightInPoints = baseHeightPoints
 
-        contentView?.addSubview(visualEffectView)
+        return NSRect(
+            x: screenFrame.minX,
+            y: screenFrame.minY,
+            width: screenFrame.width,
+            height: heightInPoints
+        )
     }
 
-    private func setupContentContainer() {
-        let container = controller.contentContainer
-        contentView?.addSubview(container)
+    // MARK: - Appearance Handling
+    private func setupAppearanceObserver() {
+        TaskbarSettings.shared.$appearance
+            .sink { [weak self] newValue in
+                self?.applyAppearance(newValue)
+            }
+            .store(in: &cancellables)
 
-        NSLayoutConstraint.activate([
-            container.leadingAnchor.constraint(equalTo: contentView!.leadingAnchor),
-            container.trailingAnchor.constraint(equalTo: contentView!.trailingAnchor),
-            container.topAnchor.constraint(equalTo: contentView!.topAnchor),
-            container.bottomAnchor.constraint(equalTo: contentView!.bottomAnchor)
-        ])
+        applyAppearance(TaskbarSettings.shared.appearance)
     }
 
-    private func setupObservers() {
-        let settings = TaskbarSettings.shared
-
-        settings.$appearance
-            .sink { [weak self] _ in
-                DispatchQueue.main.async {
-                    self?.updateAppearance()
-                }
-            }
-            .store(in: &cancellables)
-
-        settings.$blurAmount
-            .sink { [weak self] _ in
-                DispatchQueue.main.async {
-                    self?.updateBlur()
-                }
-            }
-            .store(in: &cancellables)
-
-        settings.$launcherEnabled
-            .sink { [weak self] _ in
-                DispatchQueue.main.async {
-                    self?.rebuildLayout()
-                }
-            }
-            .store(in: &cancellables)
-
-        settings.$launcherPosition
-            .sink { [weak self] _ in
-                DispatchQueue.main.async {
-                    self?.rebuildLayout()
-                }
-            }
-            .store(in: &cancellables)
-
-        NotificationCenter.default.publisher(for: .launcherAppChanged)
-            .sink { [weak self] _ in
-                DispatchQueue.main.async {
-                    self?.rebuildLayout()
-                }
-            }
-            .store(in: &cancellables)
-    }
-
-    private func updateAppearance() {
-        let mode = TaskbarSettings.shared.appearance
-
+    private func applyAppearance(_ mode: String) {
         switch mode {
-        case "Light":
-            appearance = NSAppearance(named: .aqua)
         case "Dark":
-            appearance = NSAppearance(named: .darkAqua)
-        default:
-            appearance = nil
+            contentView?.appearance = NSAppearance(named: .darkAqua)
+
+        case "Light":
+            contentView?.appearance = NSAppearance(named: .aqua)
+
+        default: // System Preferences
+            contentView?.appearance = nil
         }
+
+        contentView?.needsDisplay = true
     }
 
-    private func updateBlur() {
-        let amount = TaskbarSettings.shared.blurAmount
-        visualEffectView.alphaValue = CGFloat(amount / 100.0)
+    // MARK: - Blur Handling
+    private func setupBlurObserver() {
+        TaskbarSettings.shared.$blurAmount
+            .sink { [weak self] newValue in
+                self?.taskbarView.updateBlur(intensity: newValue)
+            }
+            .store(in: &cancellables)
+
+        taskbarView.updateBlur(intensity: TaskbarSettings.shared.blurAmount)
     }
 
-    private func rebuildLayout() {
-        controller.rebuildLayout()
-    }
-
-    func positionAtBottom() {
-        guard let screen = NSScreen.main else { return }
-
-        let newFrame = NSRect(
-            x: screen.frame.minX,
-            y: screen.frame.minY,
-            width: screen.frame.width,
-            height: taskbarHeight
-        )
-
-        setFrame(newFrame, display: true)
-    }
-
-    private func setupScreenChangeObserver() {
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleScreenChange),
-            name: NSApplication.didChangeScreenParametersNotification,
-            object: nil
-        )
-    }
-
-    @objc private func handleScreenChange(_ notification: Notification) {
-        positionAtBottom()
-    }
-
+    // MARK: - Right Click Menu
     override func rightMouseDown(with event: NSEvent) {
         let menu = NSMenu()
 
-        let settingsItem = NSMenuItem(
-            title: "Taskbar Settings",
-            action: #selector(openSettings),
-            keyEquivalent: ""
-        )
-        settingsItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
-        menu.addItem(settingsItem)
-
-        menu.addItem(NSMenuItem.separator())
-
+        // --- Activity Monitor ---
         let activityItem = NSMenuItem(
             title: "Activity Monitor",
             action: #selector(openActivityMonitor),
             keyEquivalent: ""
         )
-        activityItem.image = NSWorkspace.shared.icon(
-            forFile: "/System/Applications/Utilities/Activity Monitor.app"
-        )
+        activityItem.target = self
+
+        // Load Activity Monitor icon
+        if let icon = NSWorkspace.shared.icon(forFile: "/System/Applications/Utilities/Activity Monitor.app") as NSImage? {
+            icon.size = NSSize(width: 16, height: 16)
+            activityItem.image = icon
+        }
+
         menu.addItem(activityItem)
 
-        if let view = self.contentView {
-            NSMenu.popUpContextMenu(menu, with: event, for: view)
-        }
+        // --- Divider ---
+        menu.addItem(NSMenuItem.separator())
+
+        // --- Taskbar Settings ---
+        let settingsItem = NSMenuItem(
+            title: "Taskbar Settings",
+            action: #selector(openSettings),
+            keyEquivalent: ""
+        )
+        settingsItem.target = self
+
+        // Standard gear icon
+        settingsItem.image = NSImage(named: NSImage.actionTemplateName)
+
+        menu.addItem(settingsItem)
+
+        NSMenu.popUpContextMenu(menu, with: event, for: self.contentView!)
+    }
+
+    // MARK: - Menu Actions
+    @objc private func openActivityMonitor() {
+        let url = URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app")
+        NSWorkspace.shared.open(url)
     }
 
     @objc private func openSettings() {
         SettingsWindowController.shared.show()
-    }
-
-    @objc private func openActivityMonitor() {
-        NSWorkspace.shared.open(
-            URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app")
-        )
     }
 }

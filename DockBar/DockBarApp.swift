@@ -2,33 +2,28 @@ import SwiftUI
 
 @main
 struct DockBarApp: App {
-
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
         Settings {
-            EmptyView() // We use our own settings window
+            EmptyView() // We are NOT using SwiftUI Settings
         }
     }
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate {
-
-    var taskbarWindow: TaskbarWindow?
+    var taskbarController: TaskbarController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
 
-        // Create the taskbar window
-        taskbarWindow = TaskbarWindow()
-        taskbarWindow?.makeKeyAndOrderFront(nil)
+        // Hide from Dock
+        NSApp.setActivationPolicy(.accessory)
 
-        // Remove default Settings menu item
-        if let settingsMenu = NSApp.mainMenu?.item(withTitle: "Settings") {
-            settingsMenu.isHidden = true
-        }
+        taskbarController = TaskbarController()
+        taskbarController?.show()
     }
 
-    @objc func openSettingsWindow() {
-        SettingsWindowController.shared.show()
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
     }
 }

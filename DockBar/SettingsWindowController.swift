@@ -6,11 +6,11 @@ class SettingsWindowController: NSWindowController {
     static let shared = SettingsWindowController()
 
     private init() {
-        let settingsView = SettingsView()
+        let view = SettingsView()
+        let hosting = NSHostingView(rootView: view)
 
-        let hosting = NSHostingController(rootView: settingsView)
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 520),
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 300),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -18,8 +18,7 @@ class SettingsWindowController: NSWindowController {
 
         window.title = "Taskbar Settings"
         window.center()
-        window.isReleasedWhenClosed = false
-        window.contentView = hosting.view
+        window.contentView = hosting
 
         super.init(window: window)
     }
