@@ -1,5 +1,5 @@
-//File: SettingsView.swift
-//This was built using Microsoft Copilot
+// File: SettingsView.swift
+// This was built using Microsoft Copilot
 
 import SwiftUI
 

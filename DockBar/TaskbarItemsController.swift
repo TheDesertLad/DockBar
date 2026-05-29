@@ -75,23 +75,16 @@ class TaskbarItemsController: ObservableObject {
 
         // --- 3. Running Apps ---
         for running in runningApps {
-            // If running app is pinned, update the existing pinned item
             if let index = items.firstIndex(where: { $0.bundleIdentifier == running.bundleIdentifier }) {
                 items[index].isRunning = true
             } else {
-                // Running but not pinned → append
                 items.append(running)
             }
         }
 
         // --- 4. Centering Logic ---
         if TaskbarSettings.shared.layoutMode == "Center" {
-            // Special case: only launcher exists
-            if items.count == 1 && TaskbarSettings.shared.launcherEnabled {
-                shouldCenter = true
-            } else {
-                shouldCenter = true
-            }
+            shouldCenter = true
         } else {
             shouldCenter = false
         }
@@ -123,7 +116,6 @@ class TaskbarItemsController: ObservableObject {
     private func buildPinnedItem(bundleID: String, path: String) -> AppItem? {
         let url = URL(fileURLWithPath: path)
 
-        // If app moved, try to rediscover it
         var resolvedURL = url
         if !FileManager.default.fileExists(atPath: url.path) {
             if let newURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
@@ -143,7 +135,6 @@ class TaskbarItemsController: ObservableObject {
 
     // MARK: - Reordering
     func movePinnedItem(from oldIndex: Int, to newIndex: Int) {
-        // Launcher is index 0 if enabled → pinned apps start at index 1
         let offset = TaskbarSettings.shared.launcherEnabled ? 1 : 0
 
         let from = oldIndex - offset
@@ -162,12 +153,30 @@ class TaskbarItemsController: ObservableObject {
 
     // MARK: - Pin / Unpin
     func pinApp(bundleID: String, path: String) {
-        PinnedAppsManager.shared.pinApp(bundleID: bundleID, path: path)
-        loadPinnedApps()
+        if pinnedApps.contains(where: { $0.bundleID == bundleID }) {
+            return
+        }
+
+        guard let currentIndex = finalItems.firstIndex(where: { $0.bundleIdentifier == bundleID }) else {
+            pinnedApps.append((bundleID: bundleID, path: path))
+            PinnedAppsManager.shared.savePinnedApps(pinnedApps)
+            rebuildFinalList()
+            return
+        }
+
+        let offset = TaskbarSettings.shared.launcherEnabled ? 1 : 0
+        let insertIndex = max(0, min(currentIndex - offset, pinnedApps.count))
+
+        pinnedApps.insert((bundleID: bundleID, path: path), at: insertIndex)
+
+        PinnedAppsManager.shared.savePinnedApps(pinnedApps)
+        rebuildFinalList()
     }
 
     func unpinApp(bundleID: String) {
-        PinnedAppsManager.shared.unpinApp(bundleID: bundleID)
-        loadPinnedApps()
+        pinnedApps.removeAll { $0.bundleID == bundleID }
+        PinnedAppsManager.shared.savePinnedApps(pinnedApps)
+        rebuildFinalList()
     }
 }
+

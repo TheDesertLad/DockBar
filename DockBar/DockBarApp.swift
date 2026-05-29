@@ -1,5 +1,5 @@
-//File: DockBarApp.swift
-//This was built using Microsoft Copilot
+// File: DockBarApp.swift
+// This was built using Microsoft Copilot
 
 import SwiftUI
 

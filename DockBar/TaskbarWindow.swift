@@ -1,151 +1,78 @@
-//File: TaskbarWindow.swift
-//This was built using Microsoft Copilot
+// File: TaskbarWindow.swift
+// This was built using Microsoft Copilot
 
 import AppKit
-import Combine
 
-class TaskbarWindow: NSWindow {
+final class TaskbarWindow: NSWindow {
 
-    static let baseHeightPoints: CGFloat = 48
-    private var cancellables = Set<AnyCancellable>()
-    private var taskbarView: TaskbarView!
+    private let taskbarView = TaskbarView()
 
-    // MARK: - Init
-    convenience init() {
-        let screen = NSScreen.main ?? NSScreen.screens.first!
-        let frame = TaskbarWindow.computeFrame(for: screen)
+    // MARK: - Designated Initializer
+    init(screen: NSScreen) {
+        let height: CGFloat = 48
+        let frame = NSRect(
+            x: screen.frame.minX,
+            y: screen.frame.minY,
+            width: screen.frame.width,
+            height: height
+        )
 
-        self.init(
+        // Use the modern designated initializer
+        super.init(
             contentRect: frame,
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
 
-        configure()
-        setupAppearanceObserver()
-        setupBlurObserver()
+        // Assign the frame (this automatically places the window on the correct screen)
+        self.setFrame(frame, display: true)
+
+        configureWindow()
     }
 
-    // MARK: - Window Setup
-    private func configure() {
-        backgroundColor = .clear
-        isOpaque = false
+    // MARK: - NSCoder Not Supported
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("TaskbarWindow does not support init(coder:)")
+    }
 
+    // MARK: - Shared Setup
+    private func configureWindow() {
+        isOpaque = false
+        backgroundColor = .clear
         level = .statusBar
-        ignoresMouseEvents = false
 
         collectionBehavior = [
             .canJoinAllSpaces,
             .stationary,
-            .fullScreenAuxiliary
+            .ignoresCycle
         ]
 
-        isMovable = false
-        isMovableByWindowBackground = false
+        ignoresMouseEvents = false
 
-        // Install vibrant view
-        taskbarView = TaskbarView(frame: contentView!.bounds)
-        taskbarView.autoresizingMask = [.width, .height]
-        self.contentView = taskbarView
+        // Background blur
+        let visualEffect = NSVisualEffectView(frame: contentView?.bounds ?? .zero)
+        visualEffect.autoresizingMask = [.width, .height]
+        visualEffect.material = .sidebar
+        visualEffect.blendingMode = .behindWindow
+        visualEffect.state = .active
+
+        contentView = visualEffect
+
+        // Add taskbar view
+        visualEffect.addSubview(taskbarView)
+        taskbarView.translatesAutoresizingMaskIntoConstraints = false
+
+        NSLayoutConstraint.activate([
+            taskbarView.leadingAnchor.constraint(equalTo: visualEffect.leadingAnchor),
+            taskbarView.trailingAnchor.constraint(equalTo: visualEffect.trailingAnchor),
+            taskbarView.topAnchor.constraint(equalTo: visualEffect.topAnchor),
+            taskbarView.bottomAnchor.constraint(equalTo: visualEffect.bottomAnchor)
+        ])
     }
 
-    // MARK: - Frame Calculation
-    static func computeFrame(for screen: NSScreen) -> NSRect {
-        let screenFrame = screen.frame
-        let heightInPoints = baseHeightPoints
-
-        return NSRect(
-            x: screenFrame.minX,
-            y: screenFrame.minY,
-            width: screenFrame.width,
-            height: heightInPoints
-        )
-    }
-
-    // MARK: - Appearance Handling
-    private func setupAppearanceObserver() {
-        TaskbarSettings.shared.$appearance
-            .sink { [weak self] newValue in
-                self?.applyAppearance(newValue)
-            }
-            .store(in: &cancellables)
-
-        applyAppearance(TaskbarSettings.shared.appearance)
-    }
-
-    private func applyAppearance(_ mode: String) {
-        switch mode {
-        case "Dark":
-            contentView?.appearance = NSAppearance(named: .darkAqua)
-
-        case "Light":
-            contentView?.appearance = NSAppearance(named: .aqua)
-
-        default: // System Preferences
-            contentView?.appearance = nil
-        }
-
-        contentView?.needsDisplay = true
-    }
-
-    // MARK: - Blur Handling
-    private func setupBlurObserver() {
-        TaskbarSettings.shared.$blurAmount
-            .sink { [weak self] newValue in
-                self?.taskbarView.updateBlur(intensity: newValue)
-            }
-            .store(in: &cancellables)
-
-        taskbarView.updateBlur(intensity: TaskbarSettings.shared.blurAmount)
-    }
-
-    // MARK: - Right Click Menu
-    override func rightMouseDown(with event: NSEvent) {
-        let menu = NSMenu()
-
-        // --- Activity Monitor ---
-        let activityItem = NSMenuItem(
-            title: "Activity Monitor",
-            action: #selector(openActivityMonitor),
-            keyEquivalent: ""
-        )
-        activityItem.target = self
-
-        // Load Activity Monitor icon
-        if let icon = NSWorkspace.shared.icon(forFile: "/System/Applications/Utilities/Activity Monitor.app") as NSImage? {
-            icon.size = NSSize(width: 16, height: 16)
-            activityItem.image = icon
-        }
-
-        menu.addItem(activityItem)
-
-        // --- Divider ---
-        menu.addItem(NSMenuItem.separator())
-
-        // --- Taskbar Settings ---
-        let settingsItem = NSMenuItem(
-            title: "Taskbar Settings",
-            action: #selector(openSettings),
-            keyEquivalent: ""
-        )
-        settingsItem.target = self
-
-        // Standard gear icon
-        settingsItem.image = NSImage(named: NSImage.actionTemplateName)
-
-        menu.addItem(settingsItem)
-
-        NSMenu.popUpContextMenu(menu, with: event, for: self.contentView!)
-    }
-
-    // MARK: - Menu Actions
-    @objc private func openActivityMonitor() {
-        let url = URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app")
-        NSWorkspace.shared.open(url)
-    }
-
-    @objc private func openSettings() {
-        SettingsWindowController.shared.show()
-    }
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
 }
+
