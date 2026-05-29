@@ -33,7 +33,6 @@ final class AppIconView: NSView {
     // Drag
     var indexInStack: Int = 0
 
-    // Stable size for stack view layout
     override var intrinsicContentSize: NSSize {
         NSSize(width: 48, height: 48)
     }
@@ -249,6 +248,7 @@ final class AppIconView: NSView {
     }
 
     @objc private func quitAction() {
+        // Delegate handles NSRunningApplication.terminate / forceTerminate
         delegate?.appIconViewDidRequestQuit(self, item: item)
     }
 
@@ -289,4 +289,3 @@ extension AppIconView: NSDraggingSource {
         // No-op for now
     }
 }
-

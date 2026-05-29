@@ -8,6 +8,8 @@ final class TaskbarView: NSView {
 
     private let stackView = TaskbarIconStackView()
     private var centerConstraint: NSLayoutConstraint?
+    private var leadingConstraint: NSLayoutConstraint?
+    private var trailingConstraint: NSLayoutConstraint?
     private var cancellables = Set<AnyCancellable>()
 
     override init(frame frameRect: NSRect) {
@@ -24,16 +26,20 @@ final class TaskbarView: NSView {
         registerForDraggedTypes([.fileURL])
     }
 
-    // MARK: - Layout Fix
+    // MARK: - Layout
+
     private func setupView() {
         wantsLayer = true
 
         addSubview(stackView)
         stackView.translatesAutoresizingMaskIntoConstraints = false
 
+        leadingConstraint = stackView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8)
+        trailingConstraint = stackView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8)
+
         NSLayoutConstraint.activate([
-            stackView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
-            stackView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            leadingConstraint!,
+            trailingConstraint!,
             stackView.centerYAnchor.constraint(equalTo: centerYAnchor),
             stackView.heightAnchor.constraint(equalTo: heightAnchor)
         ])
@@ -43,6 +49,7 @@ final class TaskbarView: NSView {
     }
 
     // MARK: - Centering Logic
+
     private func setupObservers() {
         TaskbarItemsController.shared.$shouldCenter
             .receive(on: RunLoop.main)
@@ -53,23 +60,16 @@ final class TaskbarView: NSView {
     }
 
     private func updateAlignment(centered: Bool) {
-        if let c = centerConstraint {
-            removeConstraint(c)
-            centerConstraint = nil
-        }
+        centerConstraint?.isActive = false
+        leadingConstraint?.isActive = false
+        trailingConstraint?.isActive = false
 
         if centered {
-            NSLayoutConstraint.deactivate(
-                constraints.filter { $0.firstAttribute == .leading }
-            )
-
-            let c = stackView.centerXAnchor.constraint(equalTo: centerXAnchor)
-            c.isActive = true
-            centerConstraint = c
+            centerConstraint = stackView.centerXAnchor.constraint(equalTo: centerXAnchor)
+            centerConstraint?.isActive = true
         } else {
-            NSLayoutConstraint.activate([
-                stackView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8)
-            ])
+            leadingConstraint?.isActive = true
+            trailingConstraint?.isActive = true
         }
 
         layoutSubtreeIfNeeded()
@@ -86,7 +86,15 @@ final class TaskbarView: NSView {
             keyEquivalent: ""
         )
         activity.target = self
+
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.ActivityMonitor") {
+            let icon = NSWorkspace.shared.icon(forFile: url.path)
+            icon.size = NSSize(width: 16, height: 16)
+            activity.image = icon
+        }
+
         menu.addItem(activity)
+        menu.addItem(NSMenuItem.separator())
 
         let settings = NSMenuItem(
             title: "Taskbar Settings",
@@ -100,7 +108,6 @@ final class TaskbarView: NSView {
     }
 
     @objc private func openActivityMonitor() {
-        // Modern macOS-safe API
         if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.ActivityMonitor") {
             let config = NSWorkspace.OpenConfiguration()
             NSWorkspace.shared.openApplication(at: url, configuration: config) { _, _ in }
@@ -108,7 +115,6 @@ final class TaskbarView: NSView {
     }
 
     @objc private func openSettings() {
-        // FIX: Correct class name
         SettingsWindowController.shared.show()
     }
 

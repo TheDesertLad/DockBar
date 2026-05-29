@@ -2,10 +2,13 @@
 // This was built using Microsoft Copilot
 
 import AppKit
+import Combine
 
 final class TaskbarWindow: NSWindow {
 
     private let taskbarView = TaskbarView()
+    private let visualEffect = NSVisualEffectView()
+    private var cancellables = Set<AnyCancellable>()
 
     // MARK: - Designated Initializer
     init(screen: NSScreen) {
@@ -17,7 +20,6 @@ final class TaskbarWindow: NSWindow {
             height: height
         )
 
-        // Use the modern designated initializer
         super.init(
             contentRect: frame,
             styleMask: [.borderless],
@@ -25,19 +27,18 @@ final class TaskbarWindow: NSWindow {
             defer: false
         )
 
-        // Assign the frame (this automatically places the window on the correct screen)
         self.setFrame(frame, display: true)
-
         configureWindow()
+        bindSettings()
     }
 
-    // MARK: - NSCoder Not Supported
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("TaskbarWindow does not support init(coder:)")
     }
 
-    // MARK: - Shared Setup
+    // MARK: - Setup
+
     private func configureWindow() {
         isOpaque = false
         backgroundColor = .clear
@@ -51,28 +52,82 @@ final class TaskbarWindow: NSWindow {
 
         ignoresMouseEvents = false
 
-        // Background blur
-        let visualEffect = NSVisualEffectView(frame: contentView?.bounds ?? .zero)
-        visualEffect.autoresizingMask = [.width, .height]
+        visualEffect.translatesAutoresizingMaskIntoConstraints = false
         visualEffect.material = .sidebar
         visualEffect.blendingMode = .behindWindow
         visualEffect.state = .active
 
-        contentView = visualEffect
+        contentView = NSView(frame: frame)
+        contentView?.wantsLayer = true
+        contentView?.layer?.backgroundColor = NSColor.clear.cgColor
 
-        // Add taskbar view
-        visualEffect.addSubview(taskbarView)
-        taskbarView.translatesAutoresizingMaskIntoConstraints = false
+        if let contentView = contentView {
+            contentView.addSubview(visualEffect)
 
-        NSLayoutConstraint.activate([
-            taskbarView.leadingAnchor.constraint(equalTo: visualEffect.leadingAnchor),
-            taskbarView.trailingAnchor.constraint(equalTo: visualEffect.trailingAnchor),
-            taskbarView.topAnchor.constraint(equalTo: visualEffect.topAnchor),
-            taskbarView.bottomAnchor.constraint(equalTo: visualEffect.bottomAnchor)
-        ])
+            NSLayoutConstraint.activate([
+                visualEffect.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+                visualEffect.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+                visualEffect.topAnchor.constraint(equalTo: contentView.topAnchor),
+                visualEffect.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
+            ])
+
+            visualEffect.addSubview(taskbarView)
+            taskbarView.translatesAutoresizingMaskIntoConstraints = false
+
+            NSLayoutConstraint.activate([
+                taskbarView.leadingAnchor.constraint(equalTo: visualEffect.leadingAnchor),
+                taskbarView.trailingAnchor.constraint(equalTo: visualEffect.trailingAnchor),
+                taskbarView.topAnchor.constraint(equalTo: visualEffect.topAnchor),
+                taskbarView.bottomAnchor.constraint(equalTo: visualEffect.bottomAnchor)
+            ])
+        }
+    }
+
+    private func bindSettings() {
+        let settings = TaskbarSettings.shared
+
+        settings.$appearance
+            .receive(on: RunLoop.main)
+            .sink { [weak self] value in
+                self?.applyAppearance(value)
+            }
+            .store(in: &cancellables)
+
+        settings.$blurAmount
+            .receive(on: RunLoop.main)
+            .sink { [weak self] value in
+                self?.applyBlur(value)
+            }
+            .store(in: &cancellables)
+    }
+
+    private func applyAppearance(_ value: String) {
+        switch value {
+        case "Dark":
+            visualEffect.appearance = NSAppearance(named: .darkAqua)
+        case "Light":
+            visualEffect.appearance = NSAppearance(named: .aqua)
+        default:
+            visualEffect.appearance = nil // follow system
+        }
+    }
+
+    private func applyBlur(_ value: Double) {
+        // Map 0...100 to a few different materials (icons unaffected)
+        let clamped = max(0, min(100, value))
+
+        switch clamped {
+        case 0..<25:
+            visualEffect.material = .titlebar
+        case 25..<50:
+            visualEffect.material = .underWindowBackground
+        case 50..<75:
+            visualEffect.material = .sidebar
+        default:
+            visualEffect.material = .hudWindow
+        }
     }
 
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 }
-
