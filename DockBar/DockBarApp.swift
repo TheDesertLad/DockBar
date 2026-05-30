@@ -1,5 +1,6 @@
 // File: DockBarApp.swift
-// Temporary version to obtain Automation permission
+// Updated for Open-Meteo WeatherService
+// This was built using Microsoft Copilot
 
 import SwiftUI
 import AppKit
@@ -20,14 +21,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
 
+        // Keep DockBar hidden from Dock
         NSApp.setActivationPolicy(.accessory)
 
+        // Trigger Automation permission popup
         requestAutomationPermission()
 
-        if #available(macOS 13.0, *) {
-            TaskbarWeatherService.shared.start()
-        }
+        // Initialize WeatherService (auto-refreshes itself)
+        _ = WeatherService.shared
 
+        // Launch the taskbar window
         taskbarController = TaskbarController()
         taskbarController?.show()
     }
@@ -37,6 +40,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+// MARK: - Automation Permission Trigger
 private func requestAutomationPermission() {
     let script = """
     tell application "Finder"

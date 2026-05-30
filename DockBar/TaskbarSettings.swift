@@ -14,7 +14,7 @@ class TaskbarSettings: ObservableObject {
     private let launcherEnabledKey = "TaskbarLauncherEnabled"
     private let launcherPathKey = "TaskbarLauncherPath"
     private let layoutModeKey = "TaskbarLayoutMode"
-    private let weatherEnabledKey = "TaskbarWeatherEnabled"
+    private let showWeatherWidgetKey = "TaskbarShowWeatherWidget"
     private let showDesktopKey = "TaskbarShowDesktopEnabled"
 
     // MARK: - Published Settings
@@ -39,8 +39,9 @@ class TaskbarSettings: ObservableObject {
         didSet { UserDefaults.standard.set(layoutMode, forKey: layoutModeKey) }
     }
 
-    @Published var weatherEnabled: Bool {
-        didSet { UserDefaults.standard.set(weatherEnabled, forKey: weatherEnabledKey) }
+    // NEW: Weather Widget Toggle
+    @Published var showWeatherWidget: Bool {
+        didSet { UserDefaults.standard.set(showWeatherWidget, forKey: showWeatherWidgetKey) }
     }
 
     @Published var showDesktopButtonEnabled: Bool {
@@ -65,15 +66,15 @@ class TaskbarSettings: ObservableObject {
         // Layout Mode
         layoutMode = defaults.string(forKey: layoutModeKey) ?? "Left"
 
-        // Launcher Path (fixed: compute BEFORE assigning to @Published)
+        // Launcher Path (compute BEFORE assigning to @Published)
         let savedPath = defaults.string(forKey: launcherPathKey)
         let defaultPath = TaskbarSettings.defaultLauncherPath()
         let finalPath = savedPath ?? defaultPath
         launcherBundlePath = finalPath
         defaults.set(finalPath, forKey: launcherPathKey)
 
-        // Weather
-        weatherEnabled = defaults.object(forKey: weatherEnabledKey) as? Bool ?? true
+        // NEW: Weather Widget Toggle
+        showWeatherWidget = defaults.object(forKey: showWeatherWidgetKey) as? Bool ?? true
 
         // Show Desktop Button
         showDesktopButtonEnabled = defaults.object(forKey: showDesktopKey) as? Bool ?? true
@@ -91,3 +92,4 @@ class TaskbarSettings: ObservableObject {
         return oldLaunchpadApp
     }
 }
+

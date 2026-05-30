@@ -1,91 +1,90 @@
 // File: WeatherService.swift
+// Free weather provider using Open-Meteo
 // This was built using Microsoft Copilot
 
 import Foundation
+import AppKit
 import Combine
-import CoreLocation
-import WeatherKit
 
-@available(macOS 13.0, *)
-final class TaskbarWeatherService: NSObject, ObservableObject {
+final class WeatherService: ObservableObject {
 
-    static let shared = TaskbarWeatherService()
+    static let shared = WeatherService()
 
-    @Published var currentWeather: WeatherModel?
+    @Published var temperatureF: Int?
+    @Published var conditionSymbol: String?   // SF Symbol name
 
-    private let weatherService = WeatherService.shared
-    private let locationManager = CLLocationManager()
-    private var cancellables = Set<AnyCancellable>()
+    private var timer: AnyCancellable?
 
-    private override init() {
-        super.init()
-        locationManager.delegate = self
-        locationManager.desiredAccuracy = kCLLocationAccuracyThreeKilometers
+    private init() {
+        fetchWeather()
+        startAutoRefresh()
     }
 
-    func start() {
-        requestLocationIfNeeded()
+    // MARK: - Auto Refresh
+
+    private func startAutoRefresh() {
+        timer = Timer.publish(every: 900, on: .main, in: .common) // 15 minutes
+            .autoconnect()
+            .sink { [weak self] _ in
+                self?.fetchWeather()
+            }
     }
 
-    private func requestLocationIfNeeded() {
-        let status = locationManager.authorizationStatus
-        switch status {
-        case .notDetermined:
-            locationManager.requestWhenInUseAuthorization()
-        case .authorizedAlways, .authorizedWhenInUse:
-            locationManager.requestLocation()
-        default:
-            break
-        }
-    }
+    // MARK: - Fetch Weather (Open-Meteo)
 
-    private func fetchWeather(for location: CLLocation) {
-        Task {
+    func fetchWeather() {
+        // West Monroe, LA coordinates
+        let latitude = 32.5180
+        let longitude = -92.1277
+
+        let urlString =
+        "https://api.open-meteo.com/v1/forecast?latitude=\(latitude)&longitude=\(longitude)&current_weather=true"
+
+        guard let url = URL(string: urlString) else { return }
+
+        URLSession.shared.dataTask(with: url) { [weak self] data, _, error in
+            guard let data = data, error == nil else { return }
+
             do {
-                let weather = try await weatherService.weather(for: location)
-                let temp = weather.currentWeather.temperature
-                let hi = weather.dailyForecast.forecast.first?.highTemperature
-                let lo = weather.dailyForecast.forecast.first?.lowTemperature
-
-                let formatter = MeasurementFormatter()
-                formatter.unitOptions = .temperatureWithoutUnit
-                formatter.numberFormatter.maximumFractionDigits = 0
-
-                let tempString = formatter.string(from: temp)
-                let hiString = hi.map { formatter.string(from: $0) } ?? ""
-                let loString = lo.map { formatter.string(from: $0) } ?? ""
-
-                let highLow = (!hiString.isEmpty && !loString.isEmpty)
-                    ? "H \(hiString)  L \(loString)"
-                    : ""
-
-                let model = WeatherModel(
-                    temperature: tempString,
-                    condition: weather.currentWeather.condition.description,
-                    highLow: highLow,
-                    symbolName: weather.currentWeather.symbolName
-                )
-
+                let decoded = try JSONDecoder().decode(OpenMeteoResponse.self, from: data)
                 DispatchQueue.main.async {
-                    self.currentWeather = model
+                    let celsius = decoded.current_weather.temperature
+                    let fahrenheit = Int((celsius * 9/5) + 32)
+                    self?.temperatureF = fahrenheit
+                    self?.conditionSymbol = Self.symbol(for: decoded.current_weather.weathercode)
                 }
             } catch {
-                // Ignore failures
+                print("Weather decode error:", error)
             }
+        }.resume()
+    }
+
+    // MARK: - Weather Code → SF Symbol
+
+    private static func symbol(for code: Int) -> String {
+        switch code {
+        case 0: return "sun.max.fill"
+        case 1, 2: return "cloud.sun.fill"
+        case 3: return "cloud.fill"
+        case 45, 48: return "cloud.fog.fill"
+        case 51, 53, 55: return "cloud.drizzle.fill"
+        case 61, 63, 65: return "cloud.rain.fill"
+        case 71, 73, 75: return "cloud.snow.fill"
+        case 95: return "cloud.bolt.fill"
+        case 96, 99: return "cloud.bolt.rain.fill"
+        default: return "cloud.fill"
         }
     }
 }
 
-@available(macOS 13.0, *)
-extension TaskbarWeatherService: CLLocationManagerDelegate {
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        requestLocationIfNeeded()
-    }
+// MARK: - Open-Meteo Models
 
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let loc = locations.last else { return }
-        fetchWeather(for: loc)
-    }
-
-    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
+nonisolated struct OpenMeteoResponse: Codable {
+    let current_weather: CurrentWeather
 }
+
+nonisolated struct CurrentWeather: Codable {
+    let temperature: Double
+    let weathercode: Int
+}
+

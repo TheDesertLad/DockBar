@@ -1,4 +1,5 @@
 // File: WeatherWidgetView.swift
+// Taskbar weather widget using Open-Meteo
 // This was built using Microsoft Copilot
 
 import AppKit
@@ -11,89 +12,82 @@ final class WeatherWidgetView: NSView {
         case leftOfCenter
     }
 
+    var mode: Mode = .left {
+        didSet { needsLayout = true }
+    }
+
     private let iconView = NSImageView()
-    private let tempLabel = NSTextField(labelWithString: "--")
-    private let conditionLabel = NSTextField(labelWithString: "")
-    private let hiLoLabel = NSTextField(labelWithString: "")
+    private let tempLabel = NSTextField(labelWithString: "--°")
 
     private var cancellables = Set<AnyCancellable>()
-    var mode: Mode = .left {
-        didSet { updateLayoutForMode() }
-    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        setupViews()
-        bindWeather()
+        setupView()
+        setupObservers()
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
-        setupViews()
-        bindWeather()
+        setupView()
+        setupObservers()
     }
 
-    private func setupViews() {
+    private func setupView() {
         wantsLayer = true
 
-        iconView.imageScaling = .scaleProportionallyUpOrDown
+        iconView.symbolConfiguration = .init(pointSize: 16, weight: .medium)
+        iconView.contentTintColor = .labelColor
 
-        [tempLabel, conditionLabel, hiLoLabel].forEach {
-            $0.font = NSFont.systemFont(ofSize: 11, weight: .medium)
-            $0.textColor = .labelColor
-            $0.alignment = .left
-        }
+        tempLabel.font = .systemFont(ofSize: 13, weight: .medium)
+        tempLabel.textColor = .labelColor
 
-        tempLabel.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
-        conditionLabel.font = NSFont.systemFont(ofSize: 10)
-        hiLoLabel.font = NSFont.systemFont(ofSize: 9)
+        addSubview(iconView)
+        addSubview(tempLabel)
 
-        let textStack = NSStackView(views: [tempLabel, conditionLabel, hiLoLabel])
-        textStack.orientation = .vertical
-        textStack.spacing = 0
-
-        let hStack = NSStackView(views: [iconView, textStack])
-        hStack.orientation = .horizontal
-        hStack.spacing = 4
-        hStack.alignment = .centerY
-
-        addSubview(hStack)
-        hStack.translatesAutoresizingMaskIntoConstraints = false
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        tempLabel.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
-            hStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
-            hStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
-            hStack.centerYAnchor.constraint(equalTo: centerYAnchor)
+            iconView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
+
+            tempLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 4),
+            tempLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
+            tempLabel.trailingAnchor.constraint(equalTo: trailingAnchor)
         ])
-
-        iconView.widthAnchor.constraint(equalToConstant: 24).isActive = true
-        iconView.heightAnchor.constraint(equalToConstant: 24).isActive = true
-
-        updateLayoutForMode()
     }
 
-    private func updateLayoutForMode() {
-        switch mode {
-        case .left:
-            widthAnchor.constraint(equalToConstant: 80).isActive = true
-        case .leftOfCenter:
-            widthAnchor.constraint(equalToConstant: 140).isActive = true
-        }
-        heightAnchor.constraint(equalToConstant: 48).isActive = true
+    private func setupObservers() {
+        let service = WeatherService.shared
+
+        service.$temperatureF
+            .receive(on: RunLoop.main)
+            .sink { [weak self] temp in
+                guard let temp = temp else { return }
+                self?.tempLabel.stringValue = "\(temp)°"
+            }
+            .store(in: &cancellables)
+
+        service.$conditionSymbol
+            .receive(on: RunLoop.main)
+            .sink { [weak self] symbol in
+                guard let symbol = symbol else { return }
+                self?.iconView.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+            }
+            .store(in: &cancellables)
     }
 
-    private func bindWeather() {
-        if #available(macOS 13.0, *) {
-            TaskbarWeatherService.shared.$currentWeather
-                .receive(on: RunLoop.main)
-                .sink { [weak self] model in
-                    guard let self = self, let model = model else { return }
-                    self.tempLabel.stringValue = model.temperature
-                    self.conditionLabel.stringValue = model.condition
-                    self.hiLoLabel.stringValue = model.highLow
-                    self.iconView.image = model.icon
-                }
-                .store(in: &cancellables)
+    // MARK: - Click → Open Weather App
+
+    override func mouseDown(with event: NSEvent) {
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.weather") {
+            let config = NSWorkspace.OpenConfiguration()
+            NSWorkspace.shared.openApplication(at: url, configuration: config)
         }
+    }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: 80, height: 48)
     }
 }

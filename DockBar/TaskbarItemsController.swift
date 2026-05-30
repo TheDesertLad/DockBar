@@ -11,6 +11,7 @@ class TaskbarItemsController: ObservableObject {
     @Published var finalItems: [AppItem] = []
     @Published var shouldCenter: Bool = false
 
+    // Weather widget state (driven by TaskbarSettings)
     @Published var showWeatherWidget: Bool = false
     @Published var weatherWidgetMode: WeatherWidgetView.Mode = .left
 
@@ -51,10 +52,12 @@ class TaskbarItemsController: ObservableObject {
     private func observeSettings() {
         let settings = TaskbarSettings.shared
 
+        // Launcher enabled toggle
         settings.$launcherEnabled
             .sink { [weak self] _ in self?.rebuildFinalList() }
             .store(in: &cancellables)
 
+        // Launcher path changed
         settings.$launcherBundlePath
             .sink { [weak self] newPath in
                 guard let self = self else { return }
@@ -74,16 +77,22 @@ class TaskbarItemsController: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // Centering mode
         settings.$layoutMode
             .sink { [weak self] mode in
                 guard let self = self else { return }
+
                 self.shouldCenter = (mode == "Center")
+
+                // Weather widget moves left-of-center when centered
                 self.weatherWidgetMode = self.shouldCenter ? .leftOfCenter : .left
+
                 self.rebuildFinalList()
             }
             .store(in: &cancellables)
 
-        settings.$weatherEnabled
+        // NEW: Weather widget toggle
+        settings.$showWeatherWidget
             .sink { [weak self] enabled in
                 self?.showWeatherWidget = enabled
             }
@@ -201,3 +210,4 @@ class TaskbarItemsController: ObservableObject {
         rebuildFinalList()
     }
 }
+

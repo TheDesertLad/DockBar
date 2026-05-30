@@ -136,7 +136,8 @@ final class TaskbarView: NSView {
             }
             .store(in: &cancellables)
 
-        items.$showWeatherWidget
+        // Weather widget visibility
+        settings.$showWeatherWidget
             .receive(on: RunLoop.main)
             .sink { [weak self] show in
                 self?.weatherView.isHidden = !show
@@ -253,3 +254,4 @@ final class TaskbarView: NSView {
         SettingsWindowController.shared.show()
     }
 }
+

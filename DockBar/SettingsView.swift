@@ -60,6 +60,21 @@ struct SettingsView: View {
 
             Divider()
 
+            // MARK: - Weather Widget Section
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Weather Widget")
+                    .font(.headline)
+
+                Toggle("Enable Weather Widget", isOn: $settings.showWeatherWidget)
+
+                Text("Weather data is provided by Open‑Meteo. When clicked, Apple’s Weather app opens, so live conditions may not match.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Divider()
+
             // Quit
             Button("Quit DockBar") {
                 showQuitConfirm = true
