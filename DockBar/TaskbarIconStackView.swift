@@ -30,14 +30,19 @@ final class TaskbarIconStackView: NSStackView, AppIconViewDelegate {
     private func configureStack() {
         orientation = .horizontal
         alignment = .centerY
-        spacing = 6
+
+        // REMOVE GAPS BETWEEN ICONS
+        spacing = 0
+
         distribution = .gravityAreas
-        edgeInsets = NSEdgeInsets(top: 0, left: 4, bottom: 0, right: 4)
+        edgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 4)
         detachesHiddenViews = false
         translatesAutoresizingMaskIntoConstraints = false
         setHuggingPriority(.defaultLow, for: .horizontal)
         setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
     }
+
+    // MARK: - Rebuild Icons
 
     func rebuildIcons() {
         arrangedSubviews.forEach { view in
@@ -46,16 +51,38 @@ final class TaskbarIconStackView: NSStackView, AppIconViewDelegate {
         }
 
         for (index, item) in controller.finalItems.enumerated() {
+
+            // WEATHER WIDGET (INLINE MODE)
+            if item.bundleIdentifier == "__weather__" {
+                let weather = WeatherWidgetView()
+                weather.mode = .inline
+                weather.translatesAutoresizingMaskIntoConstraints = false
+
+                weather.widthAnchor.constraint(equalToConstant: 48).isActive = true
+                weather.heightAnchor.constraint(equalToConstant: 48).isActive = true
+
+                weather.onRequestDisable = {
+                    TaskbarSettings.shared.showWeatherWidget = false
+                }
+
+                addArrangedSubview(weather)
+                continue
+            }
+
+            // NORMAL APP ICON (INCLUDING LAUNCHER)
             let iconView = AppIconView(item: item)
             iconView.delegate = self
             iconView.indexInStack = index
 
+            iconView.translatesAutoresizingMaskIntoConstraints = false
             iconView.widthAnchor.constraint(equalToConstant: 48).isActive = true
             iconView.heightAnchor.constraint(equalToConstant: 48).isActive = true
 
             addArrangedSubview(iconView)
         }
     }
+
+    // MARK: - Running App Hit Test
 
     func runningApp(at point: NSPoint) -> NSRunningApplication? {
         for subview in arrangedSubviews {
@@ -71,13 +98,28 @@ final class TaskbarIconStackView: NSStackView, AppIconViewDelegate {
         return nil
     }
 
+    // MARK: - Launcher Access
+
+    func launcherIconView() -> AppIconView? {
+        arrangedSubviews
+            .compactMap { $0 as? AppIconView }
+            .first { $0.item.bundleIdentifier == controller.lastLauncherBundleID }
+    }
+
     // MARK: - AppIconViewDelegate
 
     func appIconViewDidBeginDrag(_ view: AppIconView, item: AppItem, index: Int) {
+
+        if item.bundleIdentifier == "__weather__" {
+            dragSourceIndex = nil
+            return
+        }
+
         if item.bundleIdentifier == controller.lastLauncherBundleID {
             dragSourceIndex = nil
             return
         }
+
         dragSourceIndex = index
         NotificationCenter.default.post(name: .taskbarDragBegan, object: nil)
     }
@@ -105,6 +147,15 @@ final class TaskbarIconStackView: NSStackView, AppIconViewDelegate {
     }
 
     func appIconViewDidRequestActivate(_ view: AppIconView, item: AppItem) {
+
+        if item.bundleIdentifier == "__weather__" {
+            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.weather") {
+                let config = NSWorkspace.OpenConfiguration()
+                NSWorkspace.shared.openApplication(at: url, configuration: config)
+            }
+            return
+        }
+
         if let running = NSWorkspace.shared.runningApplications.first(where: {
             $0.bundleIdentifier == item.bundleIdentifier
         }) {
@@ -115,15 +166,18 @@ final class TaskbarIconStackView: NSStackView, AppIconViewDelegate {
     }
 
     func appIconViewDidRequestPin(_ view: AppIconView, item: AppItem) {
+        if item.bundleIdentifier == "__weather__" { return }
         controller.pinApp(bundleID: item.bundleIdentifier, path: item.bundleURL.path)
     }
 
     func appIconViewDidRequestUnpin(_ view: AppIconView, item: AppItem) {
+        if item.bundleIdentifier == "__weather__" { return }
         if item.bundleIdentifier == controller.lastLauncherBundleID { return }
         controller.unpinApp(bundleID: item.bundleIdentifier)
     }
 
     func appIconViewDidRequestQuit(_ view: AppIconView, item: AppItem) {
+        if item.bundleIdentifier == "__weather__" { return }
         if let running = NSWorkspace.shared.runningApplications.first(where: {
             $0.bundleIdentifier == item.bundleIdentifier
         }) {
@@ -139,3 +193,4 @@ final class TaskbarIconStackView: NSStackView, AppIconViewDelegate {
         controller.movePinnedItem(from: oldIndex, to: newIndex)
     }
 }
+

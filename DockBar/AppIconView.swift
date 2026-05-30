@@ -33,6 +33,7 @@ final class AppIconView: NSView {
     // Drag
     var indexInStack: Int = 0
 
+    // FINAL FRAME SIZE = 48×48
     override var intrinsicContentSize: NSSize {
         NSSize(width: 48, height: 48)
     }
@@ -53,6 +54,7 @@ final class AppIconView: NSView {
     private func setupViews() {
         wantsLayer = true
 
+        // Hover plate (48×48)
         hoverPlateView.material = .menu
         hoverPlateView.blendingMode = .withinWindow
         hoverPlateView.state = .inactive
@@ -69,17 +71,19 @@ final class AppIconView: NSView {
             hoverPlateView.centerYAnchor.constraint(equalTo: centerYAnchor)
         ])
 
+        // App icon image (36×36)
         imageView.imageScaling = .scaleProportionallyUpOrDown
         imageView.wantsLayer = true
         addSubview(imageView)
         imageView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            imageView.widthAnchor.constraint(equalToConstant: 40),
-            imageView.heightAnchor.constraint(equalToConstant: 40),
+            imageView.widthAnchor.constraint(equalToConstant: 36),
+            imageView.heightAnchor.constraint(equalToConstant: 36),
             imageView.centerXAnchor.constraint(equalTo: centerXAnchor),
-            imageView.centerYAnchor.constraint(equalTo: centerYAnchor, constant: 2)
+            imageView.centerYAnchor.constraint(equalTo: centerYAnchor)
         ])
 
+        // Running indicator (unchanged)
         indicatorView.wantsLayer = true
         indicatorView.layer?.cornerRadius = 1.5
         indicatorView.isHidden = true
@@ -166,7 +170,7 @@ final class AppIconView: NSView {
 
         delegate?.appIconViewDidBeginDrag(self, item: item, index: indexInStack)
 
-        let draggingImage = imageView.image ?? NSImage(size: NSSize(width: 40, height: 40))
+        let draggingImage = imageView.image ?? NSImage(size: NSSize(width: 36, height: 36))
         let draggingItem = NSDraggingItem(pasteboardWriter: NSString(string: item.bundleIdentifier))
         draggingItem.setDraggingFrame(bounds, contents: draggingImage)
 

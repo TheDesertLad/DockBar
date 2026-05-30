@@ -1,5 +1,4 @@
 // File: DockBarApp.swift
-// Updated for Open-Meteo WeatherService
 // This was built using Microsoft Copilot
 
 import SwiftUI
@@ -24,7 +23,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Keep DockBar hidden from Dock
         NSApp.setActivationPolicy(.accessory)
 
-        // Trigger Automation permission popup
+        // 🔥 Trigger Automation permission popup for Finder
         requestAutomationPermission()
 
         // Initialize WeatherService (auto-refreshes itself)
@@ -42,12 +41,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 // MARK: - Automation Permission Trigger
 private func requestAutomationPermission() {
+
+    // This reliably forces macOS to show:
+    // “DockBar wants to control Finder. Allow?”
+    //
+    // It is harmless and does not modify anything.
     let script = """
     tell application "Finder"
-        get name
+        count windows
     end tell
     """
 
     var error: NSDictionary?
     NSAppleScript(source: script)?.executeAndReturnError(&error)
+
+    if let error = error {
+        print("Automation permission request error: \(error)")
+    }
 }
+

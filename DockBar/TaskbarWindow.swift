@@ -158,4 +158,11 @@ final class TaskbarWindow: NSWindow {
             controller.showContextMenu(for: app, at: location)
         }
     }
+
+    // MARK: - Settings passthrough (for TaskbarView)
+
+    func openSettings() {
+        controller?.openSettingsWindow()
+    }
 }
+

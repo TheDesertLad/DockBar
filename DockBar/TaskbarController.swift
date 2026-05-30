@@ -2,6 +2,7 @@
 // This was built using Microsoft Copilot
 
 import AppKit
+import SwiftUI
 
 class TaskbarController: NSObject {
     private var window: TaskbarWindow?
@@ -65,6 +66,15 @@ class TaskbarController: NSObject {
     @objc private func quitSelectedApp(_ sender: Any?) {
         guard let app = currentRightClickedApp else { return }
         app.terminate()
+    }
+
+    // MARK: - Settings entry point (CUSTOM SETTINGS WINDOW)
+
+    func openSettingsWindow() {
+        let controller = SettingsWindowController.shared
+        controller.showWindow(nil)
+        controller.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
 

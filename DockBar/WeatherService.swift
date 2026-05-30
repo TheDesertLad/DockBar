@@ -1,5 +1,4 @@
 // File: WeatherService.swift
-// Free weather provider using Open-Meteo
 // This was built using Microsoft Copilot
 
 import Foundation
