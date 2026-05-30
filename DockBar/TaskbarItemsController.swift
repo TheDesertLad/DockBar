@@ -90,7 +90,7 @@ class TaskbarItemsController: ObservableObject {
             }
         }
 
-        // 2. Pinned Apps (launcher removed earlier)
+        // 2. Pinned Apps
         for pinned in pinnedApps {
             if let item = buildPinnedItem(bundleID: pinned.bundleID, path: pinned.path) {
                 items.append(item)
@@ -106,7 +106,8 @@ class TaskbarItemsController: ObservableObject {
             }
         }
 
-        DispatchQueue.main.async {
+        // MARK: - FIX: Delay rebuild slightly to avoid destroying the icon mid-click
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
             if self.finalItems != items {
                 self.finalItems = items
             }
@@ -128,7 +129,7 @@ class TaskbarItemsController: ObservableObject {
         return AppItem(
             bundleIdentifier: id,
             bundleURL: url,
-            isPinned: false,   // launcher is NOT pinned
+            isPinned: false,
             isRunning: false
         )
     }

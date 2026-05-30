@@ -54,10 +54,20 @@ final class TaskbarView: NSView {
     // MARK: - Observers
 
     private func setupObservers() {
+
+        // Existing observer (centering)
         TaskbarItemsController.shared.$shouldCenter
             .receive(on: RunLoop.main)
             .sink { [weak self] shouldCenter in
                 self?.updateAlignment(centered: shouldCenter)
+            }
+            .store(in: &cancellables)
+
+        // 🔥 NEW — rebuild icons whenever finalItems changes
+        TaskbarItemsController.shared.$finalItems
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.stackView.rebuildIcons()
             }
             .store(in: &cancellables)
     }

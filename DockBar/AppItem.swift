@@ -5,7 +5,8 @@ import AppKit
 
 struct AppItem: Identifiable, Equatable {
 
-    var id: String { bundleURL.path }   // UNIQUE PER APP PATH
+    // Unique identity for SwiftUI diffing
+    let id = UUID()
 
     let bundleIdentifier: String
     var bundleURL: URL
@@ -34,11 +35,10 @@ struct AppItem: Identifiable, Equatable {
         self.isRunning = isRunning
     }
 
-    // MARK: - Equatable (COMPARE PATH + PINNED/RUNNING)
+    // MARK: - Equatable
     static func == (lhs: AppItem, rhs: AppItem) -> Bool {
-        return lhs.bundleURL.path == rhs.bundleURL.path &&
-               lhs.isPinned == rhs.isPinned &&
-               lhs.isRunning == rhs.isRunning
+        // UUID makes each rebuild unique
+        return lhs.id == rhs.id
     }
 }
 
