@@ -10,7 +10,7 @@ struct DockBarApp: App {
 
     var body: some Scene {
         Settings {
-            EmptyView() // We are NOT using SwiftUI Settings
+            EmptyView()
         }
     }
 }
@@ -20,13 +20,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
 
-        // TEMPORARY: Make DockBar a regular app so macOS will show the Automation popup
         NSApp.setActivationPolicy(.accessory)
 
-        // 🔥 Trigger Automation permission popup
         requestAutomationPermission()
 
-        // Launch the taskbar window
+        if #available(macOS 13.0, *) {
+            TaskbarWeatherService.shared.start()
+        }
+
         taskbarController = TaskbarController()
         taskbarController?.show()
     }
@@ -36,7 +37,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-// MARK: - Automation Permission Trigger
 private func requestAutomationPermission() {
     let script = """
     tell application "Finder"
@@ -47,4 +47,3 @@ private func requestAutomationPermission() {
     var error: NSDictionary?
     NSAppleScript(source: script)?.executeAndReturnError(&error)
 }
-

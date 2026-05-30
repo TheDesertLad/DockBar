@@ -8,11 +8,16 @@ class TaskbarSettings: ObservableObject {
 
     static let shared = TaskbarSettings()
 
+    // MARK: - UserDefaults Keys
     private let appearanceKey = "TaskbarAppearance"
     private let blurKey = "TaskbarBlurAmount"
     private let launcherEnabledKey = "TaskbarLauncherEnabled"
     private let launcherPathKey = "TaskbarLauncherPath"
     private let layoutModeKey = "TaskbarLayoutMode"
+    private let weatherEnabledKey = "TaskbarWeatherEnabled"
+    private let showDesktopKey = "TaskbarShowDesktopEnabled"
+
+    // MARK: - Published Settings
 
     @Published var appearance: String {
         didSet { UserDefaults.standard.set(appearance, forKey: appearanceKey) }
@@ -34,23 +39,47 @@ class TaskbarSettings: ObservableObject {
         didSet { UserDefaults.standard.set(layoutMode, forKey: layoutModeKey) }
     }
 
-    private init() {
-        appearance = UserDefaults.standard.string(forKey: appearanceKey) ?? "System"
+    @Published var weatherEnabled: Bool {
+        didSet { UserDefaults.standard.set(weatherEnabled, forKey: weatherEnabledKey) }
+    }
 
-        let savedBlur = UserDefaults.standard.double(forKey: blurKey)
+    @Published var showDesktopButtonEnabled: Bool {
+        didSet { UserDefaults.standard.set(showDesktopButtonEnabled, forKey: showDesktopKey) }
+    }
+
+    // MARK: - Initializer
+
+    private init() {
+        let defaults = UserDefaults.standard
+
+        // Appearance
+        appearance = defaults.string(forKey: appearanceKey) ?? "System"
+
+        // Blur
+        let savedBlur = defaults.double(forKey: blurKey)
         blurAmount = savedBlur == 0 ? 50 : savedBlur
 
-        launcherEnabled = UserDefaults.standard.object(forKey: launcherEnabledKey) as? Bool ?? true
+        // Launcher Enabled
+        launcherEnabled = defaults.object(forKey: launcherEnabledKey) as? Bool ?? true
 
-        layoutMode = UserDefaults.standard.string(forKey: layoutModeKey) ?? "Left"
+        // Layout Mode
+        layoutMode = defaults.string(forKey: layoutModeKey) ?? "Left"
 
-        if let savedPath = UserDefaults.standard.string(forKey: launcherPathKey) {
-            launcherBundlePath = savedPath
-        } else {
-            launcherBundlePath = TaskbarSettings.defaultLauncherPath()
-            UserDefaults.standard.set(launcherBundlePath, forKey: launcherPathKey)
-        }
+        // Launcher Path (fixed: compute BEFORE assigning to @Published)
+        let savedPath = defaults.string(forKey: launcherPathKey)
+        let defaultPath = TaskbarSettings.defaultLauncherPath()
+        let finalPath = savedPath ?? defaultPath
+        launcherBundlePath = finalPath
+        defaults.set(finalPath, forKey: launcherPathKey)
+
+        // Weather
+        weatherEnabled = defaults.object(forKey: weatherEnabledKey) as? Bool ?? true
+
+        // Show Desktop Button
+        showDesktopButtonEnabled = defaults.object(forKey: showDesktopKey) as? Bool ?? true
     }
+
+    // MARK: - Default Launcher Path
 
     static func defaultLauncherPath() -> String {
         let appsApp = "/System/Applications/Apps.app"
@@ -62,4 +91,3 @@ class TaskbarSettings: ObservableObject {
         return oldLaunchpadApp
     }
 }
-

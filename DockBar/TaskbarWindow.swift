@@ -159,4 +159,3 @@ final class TaskbarWindow: NSWindow {
         }
     }
 }
-

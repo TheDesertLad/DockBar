@@ -64,6 +64,7 @@ class TaskbarController: NSObject {
 
     @objc private func quitSelectedApp(_ sender: Any?) {
         guard let app = currentRightClickedApp else { return }
-        app.terminate()   // 🔹 normal Quit only
+        app.terminate()
     }
 }
+

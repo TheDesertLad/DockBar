@@ -4,6 +4,12 @@
 import AppKit
 import Combine
 
+extension Notification.Name {
+    static let taskbarDragBegan = Notification.Name("TaskbarDragBegan")
+    static let taskbarDragMoved = Notification.Name("TaskbarDragMoved")
+    static let taskbarDragEnded = Notification.Name("TaskbarDragEnded")
+}
+
 final class TaskbarIconStackView: NSStackView, AppIconViewDelegate {
 
     private let controller = TaskbarItemsController.shared
@@ -21,22 +27,18 @@ final class TaskbarIconStackView: NSStackView, AppIconViewDelegate {
         registerForDraggedTypes([.string])
     }
 
-    // MARK: - StackView Configuration
     private func configureStack() {
         orientation = .horizontal
         alignment = .centerY
         spacing = 6
-
         distribution = .gravityAreas
         edgeInsets = NSEdgeInsets(top: 0, left: 4, bottom: 0, right: 4)
         detachesHiddenViews = false
-
         translatesAutoresizingMaskIntoConstraints = false
         setHuggingPriority(.defaultLow, for: .horizontal)
         setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
     }
 
-    // MARK: - Build Icons
     func rebuildIcons() {
         arrangedSubviews.forEach { view in
             removeArrangedSubview(view)
@@ -55,13 +57,10 @@ final class TaskbarIconStackView: NSStackView, AppIconViewDelegate {
         }
     }
 
-    // MARK: - Hit Testing
     func runningApp(at point: NSPoint) -> NSRunningApplication? {
         for subview in arrangedSubviews {
             guard let iconView = subview as? AppIconView else { continue }
-
             let localPoint = convert(point, to: iconView)
-
             if iconView.bounds.contains(localPoint) {
                 let bundleID = iconView.item.bundleIdentifier
                 return NSWorkspace.shared.runningApplications.first {
@@ -72,38 +71,38 @@ final class TaskbarIconStackView: NSStackView, AppIconViewDelegate {
         return nil
     }
 
-    // MARK: - Drag Delegate (AppIconViewDelegate)
+    // MARK: - AppIconViewDelegate
 
     func appIconViewDidBeginDrag(_ view: AppIconView, item: AppItem, index: Int) {
-        // Prevent dragging launcher
         if item.bundleIdentifier == controller.lastLauncherBundleID {
             dragSourceIndex = nil
             return
         }
         dragSourceIndex = index
+        NotificationCenter.default.post(name: .taskbarDragBegan, object: nil)
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        return .move
+        .move
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-        guard let sourceIndex = dragSourceIndex else { return .move }
-
         let location = sender.draggingLocation
-        let dropIndex = TaskbarDragController.shared.indexForDrop(in: self, at: location)
 
-        controller.movePinnedItem(from: sourceIndex, to: dropIndex)
-        dragSourceIndex = dropIndex
+        if let sourceIndex = dragSourceIndex {
+            let dropIndex = TaskbarDragController.shared.indexForDrop(in: self, at: location)
+            controller.movePinnedItem(from: sourceIndex, to: dropIndex)
+            dragSourceIndex = dropIndex
+        }
 
+        NotificationCenter.default.post(name: .taskbarDragMoved, object: location)
         return .move
     }
 
     override func draggingEnded(_ sender: NSDraggingInfo) {
         dragSourceIndex = nil
+        NotificationCenter.default.post(name: .taskbarDragEnded, object: nil)
     }
-
-    // MARK: - AppIconViewDelegate actions
 
     func appIconViewDidRequestActivate(_ view: AppIconView, item: AppItem) {
         if let running = NSWorkspace.shared.runningApplications.first(where: {
@@ -120,10 +119,7 @@ final class TaskbarIconStackView: NSStackView, AppIconViewDelegate {
     }
 
     func appIconViewDidRequestUnpin(_ view: AppIconView, item: AppItem) {
-        // Prevent unpinning launcher
-        if item.bundleIdentifier == controller.lastLauncherBundleID {
-            return
-        }
+        if item.bundleIdentifier == controller.lastLauncherBundleID { return }
         controller.unpinApp(bundleID: item.bundleIdentifier)
     }
 
@@ -135,9 +131,8 @@ final class TaskbarIconStackView: NSStackView, AppIconViewDelegate {
         }
     }
 
-    // This was in your earlier version and is required by the protocol
     func appIconViewIsLauncher(_ view: AppIconView) -> Bool {
-        return view.item.bundleIdentifier == controller.lastLauncherBundleID
+        view.item.bundleIdentifier == controller.lastLauncherBundleID
     }
 
     func moveIcon(from oldIndex: Int, to newIndex: Int) {

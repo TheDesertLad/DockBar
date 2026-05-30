@@ -11,6 +11,9 @@ class TaskbarItemsController: ObservableObject {
     @Published var finalItems: [AppItem] = []
     @Published var shouldCenter: Bool = false
 
+    @Published var showWeatherWidget: Bool = false
+    @Published var weatherWidgetMode: WeatherWidgetView.Mode = .left
+
     private var pinnedApps: [(bundleID: String, path: String)] = []
     private var runningApps: [AppItem] = []
 
@@ -73,8 +76,16 @@ class TaskbarItemsController: ObservableObject {
 
         settings.$layoutMode
             .sink { [weak self] mode in
-                self?.shouldCenter = (mode == "Center")
-                self?.rebuildFinalList()
+                guard let self = self else { return }
+                self.shouldCenter = (mode == "Center")
+                self.weatherWidgetMode = self.shouldCenter ? .leftOfCenter : .left
+                self.rebuildFinalList()
+            }
+            .store(in: &cancellables)
+
+        settings.$weatherEnabled
+            .sink { [weak self] enabled in
+                self?.showWeatherWidget = enabled
             }
             .store(in: &cancellables)
     }
@@ -106,7 +117,7 @@ class TaskbarItemsController: ObservableObject {
             }
         }
 
-        // MARK: - FIX: Delay rebuild slightly to avoid destroying the icon mid-click
+        // Delay slightly to avoid destroying the icon mid-click
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
             if self.finalItems != items {
                 self.finalItems = items
@@ -190,4 +201,3 @@ class TaskbarItemsController: ObservableObject {
         rebuildFinalList()
     }
 }
-

@@ -7,10 +7,21 @@ import Combine
 final class TaskbarView: NSView {
 
     private let stackView = TaskbarIconStackView()
+    private let weatherView = WeatherWidgetView()
+    private let trashView = TrashslotView()
+    private let showDesktopButton = ShowDesktopButton()
+
     private var centerConstraint: NSLayoutConstraint?
     private var leadingConstraint: NSLayoutConstraint?
-    private var trailingConstraint: NSLayoutConstraint?
+
+    private var weatherLeadingConstraint: NSLayoutConstraint?
+    private var weatherCenterConstraint: NSLayoutConstraint?
+
     private var cancellables = Set<AnyCancellable>()
+
+    // Global drag tracking
+    private var trackingArea: NSTrackingArea?
+    private var isDraggingSomething = false
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -26,91 +37,181 @@ final class TaskbarView: NSView {
         registerForDraggedTypes([.fileURL])
     }
 
-    // MARK: - Layout
+    // MARK: - Tracking Area
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+
+        if let trackingArea = trackingArea {
+            removeTrackingArea(trackingArea)
+        }
+
+        let options: NSTrackingArea.Options = [
+            .mouseMoved,
+            .mouseEnteredAndExited,
+            .activeAlways,
+            .inVisibleRect
+        ]
+
+        trackingArea = NSTrackingArea(rect: bounds, options: options, owner: self, userInfo: nil)
+        addTrackingArea(trackingArea!)
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        if event.type == .leftMouseDragged || event.type == .otherMouseDragged {
+            if !isDraggingSomething {
+                isDraggingSomething = true
+                trashView.beginExternalDrag()
+            }
+        }
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        if isDraggingSomething {
+            isDraggingSomething = false
+            trashView.endExternalDrag()
+        }
+    }
+
+    // MARK: - Setup
 
     private func setupView() {
         wantsLayer = true
 
         addSubview(stackView)
+        addSubview(weatherView)
+        addSubview(trashView)
+        addSubview(showDesktopButton)
+
         stackView.translatesAutoresizingMaskIntoConstraints = false
+        weatherView.translatesAutoresizingMaskIntoConstraints = false
+        trashView.translatesAutoresizingMaskIntoConstraints = false
+        showDesktopButton.translatesAutoresizingMaskIntoConstraints = false
 
-        leadingConstraint =
-            stackView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8)
-
-        trailingConstraint =
-            stackView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8)
+        leadingConstraint = stackView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8)
 
         NSLayoutConstraint.activate([
             leadingConstraint!,
-            trailingConstraint!,
             stackView.centerYAnchor.constraint(equalTo: centerYAnchor),
-            stackView.heightAnchor.constraint(equalTo: heightAnchor)
+            stackView.heightAnchor.constraint(equalTo: heightAnchor),
+
+            // Trashslot
+            trashView.trailingAnchor.constraint(equalTo: showDesktopButton.leadingAnchor, constant: -8),
+            trashView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            trashView.widthAnchor.constraint(equalToConstant: 140),
+            trashView.heightAnchor.constraint(equalTo: heightAnchor),
+
+            // Show Desktop slit (flush to right edge)
+            showDesktopButton.trailingAnchor.constraint(equalTo: trailingAnchor),
+            showDesktopButton.centerYAnchor.constraint(equalTo: centerYAnchor),
+            showDesktopButton.widthAnchor.constraint(equalToConstant: 4),
+            showDesktopButton.heightAnchor.constraint(equalTo: heightAnchor),
+
+            // Weather widget
+            weatherView.centerYAnchor.constraint(equalTo: centerYAnchor)
         ])
 
-        stackView.setHuggingPriority(.defaultLow, for: .horizontal)
-        stackView.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
+        weatherLeadingConstraint = weatherView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8)
+        weatherCenterConstraint = weatherView.centerXAnchor.constraint(equalTo: centerXAnchor, constant: -80)
+        weatherLeadingConstraint?.isActive = true
     }
 
     // MARK: - Observers
 
     private func setupObservers() {
+        let items = TaskbarItemsController.shared
+        let settings = TaskbarSettings.shared
 
-        // Existing observer (centering)
-        TaskbarItemsController.shared.$shouldCenter
+        items.$shouldCenter
             .receive(on: RunLoop.main)
             .sink { [weak self] shouldCenter in
                 self?.updateAlignment(centered: shouldCenter)
             }
             .store(in: &cancellables)
 
-        // 🔥 NEW — rebuild icons whenever finalItems changes
-        TaskbarItemsController.shared.$finalItems
+        items.$finalItems
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 self?.stackView.rebuildIcons()
             }
             .store(in: &cancellables)
+
+        items.$showWeatherWidget
+            .receive(on: RunLoop.main)
+            .sink { [weak self] show in
+                self?.weatherView.isHidden = !show
+            }
+            .store(in: &cancellables)
+
+        items.$weatherWidgetMode
+            .receive(on: RunLoop.main)
+            .sink { [weak self] mode in
+                self?.updateWeatherMode(mode)
+            }
+            .store(in: &cancellables)
+
+        settings.$showDesktopButtonEnabled
+            .receive(on: RunLoop.main)
+            .sink { [weak self] enabled in
+                self?.showDesktopButton.isEnabled = enabled
+            }
+            .store(in: &cancellables)
     }
 
-    // MARK: - Public API for window
+    // MARK: - REQUIRED BY TaskbarWindow
 
     func reloadIcons() {
         stackView.rebuildIcons()
     }
 
-    // MARK: - Centering Logic
+    // MARK: - Alignment
 
     private func updateAlignment(centered: Bool) {
         centerConstraint?.isActive = false
         leadingConstraint?.isActive = false
-        trailingConstraint?.isActive = false
 
         if centered {
             centerConstraint = stackView.centerXAnchor.constraint(equalTo: centerXAnchor)
             centerConstraint?.isActive = true
         } else {
             leadingConstraint?.isActive = true
-            trailingConstraint?.isActive = true
         }
 
         layoutSubtreeIfNeeded()
     }
 
-    // MARK: - Hit Testing for App Icons
+    private func updateWeatherMode(_ mode: WeatherWidgetView.Mode) {
+        weatherView.mode = mode
+
+        weatherLeadingConstraint?.isActive = false
+        weatherCenterConstraint?.isActive = false
+
+        switch mode {
+        case .left:
+            weatherLeadingConstraint?.isActive = true
+        case .leftOfCenter:
+            weatherCenterConstraint?.isActive = true
+        }
+
+        layoutSubtreeIfNeeded()
+    }
+
+    // MARK: - Running App Hit Test
 
     func runningApp(at point: NSPoint) -> NSRunningApplication? {
         let localPoint = convert(point, to: stackView)
         return stackView.runningApp(at: localPoint)
     }
 
-    // MARK: - Right Click Handling (Empty Space Only)
+    // MARK: - Right Click Menu
 
     override func rightMouseDown(with event: NSEvent) {
         let clickPoint = convert(event.locationInWindow, from: nil)
 
-        if runningApp(at: clickPoint) != nil {
-            return
-        }
+        if runningApp(at: clickPoint) != nil { return }
+        if weatherView.frame.contains(clickPoint) { return }
+        if trashView.frame.contains(clickPoint) { return }
+        if showDesktopButton.frame.contains(clickPoint) { return }
 
         let menu = NSMenu()
 
@@ -151,79 +252,4 @@ final class TaskbarView: NSView {
     @objc private func openSettings() {
         SettingsWindowController.shared.show()
     }
-
-    // MARK: - Drag from Finder (drop to pin)
-
-    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        return .copy
-    }
-
-    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        guard let pasteboard =
-                sender.draggingPasteboard.propertyList(forType: .fileURL) as? String ??
-                sender.draggingPasteboard.string(forType: .fileURL)
-        else {
-            return handleMultipleURLs(sender)
-        }
-
-        if let url = URL(string: pasteboard) {
-            handleDroppedURLs([url], sender: sender)
-            return true
-        }
-        return false
-    }
-
-    private func handleMultipleURLs(_ sender: NSDraggingInfo) -> Bool {
-        guard let urls =
-                sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL]
-        else { return false }
-
-        handleDroppedURLs(urls, sender: sender)
-        return true
-    }
-
-    private func handleDroppedURLs(_ urls: [URL], sender: NSDraggingInfo) {
-        let location = sender.draggingLocation
-        let dropIndex = TaskbarDragController.shared.indexForDrop(in: stackView, at: location)
-
-        for url in urls {
-            guard let appURL = resolveAppURL(from: url) else { continue }
-            guard appURL.pathExtension == "app" else { continue }
-
-            if let bundle = Bundle(url: appURL),
-               let id = bundle.bundleIdentifier {
-
-                var pinned = PinnedAppsManager.shared.loadPinnedApps()
-
-                if !pinned.contains(where: { $0.bundleID == id }) {
-                    let clampedIndex = max(0, min(dropIndex, pinned.count))
-                    pinned.insert((bundleID: id, path: appURL.path), at: clampedIndex)
-                    PinnedAppsManager.shared.savePinnedApps(pinned)
-
-                    TaskbarItemsController.shared.pinApp(bundleID: id, path: appURL.path)
-                }
-            }
-        }
-    }
-
-    private func resolveAppURL(from url: URL) -> URL? {
-        if url.pathExtension == "app" {
-            return url
-        }
-
-        do {
-            let values = try url.resourceValues(forKeys: [.isAliasFileKey])
-            if values.isAliasFile == true {
-                let resolved = try URL(resolvingAliasFileAt: url)
-                if resolved.pathExtension == "app" {
-                    return resolved
-                }
-            }
-        } catch {
-            return nil
-        }
-
-        return nil
-    }
 }
-
