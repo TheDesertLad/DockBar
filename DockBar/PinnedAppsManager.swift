@@ -34,28 +34,35 @@ class PinnedAppsManager {
 
     // MARK: - Load Pinned Apps
     func loadPinnedApps() -> [(bundleID: String, path: String)] {
-        guard let data = try? Data(contentsOf: plistURL),
-              let plist = try? PropertyListSerialization.propertyList(
+        guard
+            let data = try? Data(contentsOf: plistURL),
+            let plist = try? PropertyListSerialization.propertyList(
                 from: data,
                 options: [],
                 format: nil
-              ) as? [[String: String]] else {
+            ) as? [[String: String]]
+        else {
             return []
         }
 
         return plist.compactMap { dict in
-            guard let id = dict["bundleIdentifier"],
-                  let path = dict["bundlePath"] else { return nil }
+            guard
+                let id = dict["bundleIdentifier"],
+                let path = dict["bundlePath"]
+            else { return nil }
+
             return (id, path)
         }
     }
 
     // MARK: - Save Pinned Apps
     func savePinnedApps(_ items: [(bundleID: String, path: String)]) {
-        let plistArray = items.map { [
-            "bundleIdentifier": $0.bundleID,
-            "bundlePath": $0.path
-        ]}
+        let plistArray = items.map {
+            [
+                "bundleIdentifier": $0.bundleID,
+                "bundlePath": $0.path
+            ]
+        }
 
         if let data = try? PropertyListSerialization.data(
             fromPropertyList: plistArray,

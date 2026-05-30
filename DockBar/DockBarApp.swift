@@ -1,7 +1,8 @@
 // File: DockBarApp.swift
-// This was built using Microsoft Copilot
+// Temporary version to obtain Automation permission
 
 import SwiftUI
+import AppKit
 
 @main
 struct DockBarApp: App {
@@ -19,9 +20,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
 
-        // Hide from Dock
+        // TEMPORARY: Make DockBar a regular app so macOS will show the Automation popup
         NSApp.setActivationPolicy(.accessory)
 
+        // 🔥 Trigger Automation permission popup
+        requestAutomationPermission()
+
+        // Launch the taskbar window
         taskbarController = TaskbarController()
         taskbarController?.show()
     }
@@ -30,3 +35,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         false
     }
 }
+
+// MARK: - Automation Permission Trigger
+private func requestAutomationPermission() {
+    let script = """
+    tell application "Finder"
+        get name
+    end tell
+    """
+
+    var error: NSDictionary?
+    NSAppleScript(source: script)?.executeAndReturnError(&error)
+}
+

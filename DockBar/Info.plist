@@ -2,9 +2,17 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>remote-notification</string>
-	</array>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSInputMonitoringUsageDescription</key>
+	<string>DockBar uses input monitoring to support global shortcuts.</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>DockBar uses screen capture to show window previews.</string>
+	<key>NSWeatherKitUsageDescription</key>
+	<string>DockBar uses WeatherKit to display local weather conditions.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>DockBar uses Automation to control apps you interact with from the taskbar.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>DockBar uses your location to show local weather information.</string>
 </dict>
 </plist>

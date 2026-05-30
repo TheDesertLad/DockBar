@@ -159,6 +159,11 @@ final class AppIconView: NSView {
     }
 
     private func beginDragSession(with event: NSEvent) {
+        // 🚫 Do not start a drag session for the launcher (prevents ghost icon)
+        if delegate?.appIconViewIsLauncher(self) == true {
+            return
+        }
+
         delegate?.appIconViewDidBeginDrag(self, item: item, index: indexInStack)
 
         let draggingImage = imageView.image ?? NSImage(size: NSSize(width: 40, height: 40))
@@ -248,7 +253,6 @@ final class AppIconView: NSView {
     }
 
     @objc private func quitAction() {
-        // Delegate handles NSRunningApplication.terminate / forceTerminate
         delegate?.appIconViewDidRequestQuit(self, item: item)
     }
 
@@ -289,3 +293,4 @@ extension AppIconView: NSDraggingSource {
         // No-op for now
     }
 }
+

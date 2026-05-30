@@ -2,109 +2,93 @@
 // This was built using Microsoft Copilot
 
 import SwiftUI
-import AppKit
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
-    @ObservedObject var settings = TaskbarSettings.shared
+
+    @ObservedObject private var settings = TaskbarSettings.shared
+    @ObservedObject private var items = TaskbarItemsController.shared
+
+    @State private var showQuitConfirm = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 16) {
 
-                // Appearance Section
-                Text("Appearance")
-                    .font(.title2)
-                    .bold()
+            // Appearance
+            Picker("Appearance", selection: $settings.appearance) {
+                Text("System").tag("System")
+                Text("Light").tag("Light")
+                Text("Dark").tag("Dark")
+            }
+            .pickerStyle(.segmented)
 
-                Picker("Theme", selection: $settings.appearance) {
-                    Text("System Preferences").tag("System Preferences")
-                    Text("Dark").tag("Dark")
-                    Text("Light").tag("Light")
-                }
-                .pickerStyle(.radioGroup)
-
-                Divider().padding(.vertical, 10)
-
-                // Blur Section
-                Text("Blur Intensity")
-                    .font(.title2)
-                    .bold()
-
+            // Blur
+            HStack {
+                Text("Blur Amount")
                 Slider(value: $settings.blurAmount, in: 0...100)
-                Text("Current: \(Int(settings.blurAmount))%")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                Text("\(Int(settings.blurAmount))")
+                    .frame(width: 40, alignment: .leading)
+            }
 
-                Divider().padding(.vertical, 10)
+            Divider()
 
-                // Launcher Section
+            // Launcher App
+            VStack(alignment: .leading, spacing: 8) {
                 Text("Launcher App")
-                    .font(.title2)
-                    .bold()
-
-                Toggle("Enable Launcher", isOn: $settings.launcherEnabled)
 
                 HStack {
-                    TextField("Launcher App Path", text: $settings.launcherBundlePath)
-                        .textFieldStyle(.roundedBorder)
+                    Text(settings.launcherBundlePath.isEmpty
+                         ? "No app selected"
+                         : settings.launcherBundlePath)
+                        .font(.caption)
+
+                    Spacer()
 
                     Button("Choose…") {
                         chooseLauncherApp()
                     }
                 }
-
-                Divider().padding(.vertical, 10)
-
-                // Layout Section
-                Text("App Alignment")
-                    .font(.title2)
-                    .bold()
-
-                Picker("Alignment", selection: $settings.layoutMode) {
-                    Text("Left").tag("Left")
-                    Text("Center").tag("Center")
-                }
-                .pickerStyle(.radioGroup)
-
-                Divider().padding(.vertical, 10)
-
-                // Quit Button
-                Button("Quit DockBar") {
-                    confirmQuit()
-                }
-                .buttonStyle(.borderedProminent)
-                .padding(.top, 10)
             }
-            .padding(20)
+
+            Divider()
+
+            // Centering
+            Toggle("Center Taskbar Icons", isOn: Binding(
+                get: { settings.layoutMode == "Center" },
+                set: { settings.layoutMode = $0 ? "Center" : "Left" }
+            ))
+
+            Divider()
+
+            // Quit
+            Button("Quit DockBar") {
+                showQuitConfirm = true
+            }
+            .alert("Are you sure you want to quit DockBar?",
+                   isPresented: $showQuitConfirm) {
+                Button("Cancel", role: .cancel) {}
+                Button("Quit", role: .destructive) {
+                    NSApp.terminate(nil)
+                }
+            }
+
+            Spacer()
         }
-        .frame(minWidth: 450, minHeight: 380)
+        .padding(20)
+        .frame(width: 420)
     }
 
-    // MARK: - Actions
+    // MARK: - File Picker
 
     private func chooseLauncherApp() {
         let panel = NSOpenPanel()
-        panel.allowedFileTypes = ["app"]
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
         panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.application]
 
         if panel.runModal() == .OK, let url = panel.url {
             settings.launcherBundlePath = url.path
-        }
-    }
-
-    private func confirmQuit() {
-        let alert = NSAlert()
-        alert.messageText = "Quit DockBar?"
-        alert.informativeText = "Are you sure you want to quit DockBar?"
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Quit")
-        alert.addButton(withTitle: "Cancel")
-
-        let response = alert.runModal()
-        if response == .alertFirstButtonReturn {
-            NSApp.terminate(nil)
         }
     }
 }

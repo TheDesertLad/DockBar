@@ -6,22 +6,18 @@ import Combine
 
 final class TaskbarIconStackView: NSStackView, AppIconViewDelegate {
 
-    private var cancellables = Set<AnyCancellable>()
     private let controller = TaskbarItemsController.shared
-
     private var dragSourceIndex: Int?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         configureStack()
-        setupObservers()
         registerForDraggedTypes([.string])
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         configureStack()
-        setupObservers()
         registerForDraggedTypes([.string])
     }
 
@@ -40,18 +36,8 @@ final class TaskbarIconStackView: NSStackView, AppIconViewDelegate {
         setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
     }
 
-    // MARK: - Observers
-    private func setupObservers() {
-        controller.$finalItems
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.rebuildIcons()
-            }
-            .store(in: &cancellables)
-    }
-
     // MARK: - Build Icons
-    private func rebuildIcons() {
+    func rebuildIcons() {
         arrangedSubviews.forEach { view in
             removeArrangedSubview(view)
             view.removeFromSuperview()
@@ -69,9 +55,31 @@ final class TaskbarIconStackView: NSStackView, AppIconViewDelegate {
         }
     }
 
-    // MARK: - Drag Delegate
+    // MARK: - Hit Testing
+    func runningApp(at point: NSPoint) -> NSRunningApplication? {
+        for subview in arrangedSubviews {
+            guard let iconView = subview as? AppIconView else { continue }
+
+            let localPoint = convert(point, to: iconView)
+
+            if iconView.bounds.contains(localPoint) {
+                let bundleID = iconView.item.bundleIdentifier
+                return NSWorkspace.shared.runningApplications.first {
+                    $0.bundleIdentifier == bundleID
+                }
+            }
+        }
+        return nil
+    }
+
+    // MARK: - Drag Delegate (AppIconViewDelegate)
 
     func appIconViewDidBeginDrag(_ view: AppIconView, item: AppItem, index: Int) {
+        // Prevent dragging launcher
+        if item.bundleIdentifier == controller.lastLauncherBundleID {
+            dragSourceIndex = nil
+            return
+        }
         dragSourceIndex = index
     }
 
@@ -85,10 +93,8 @@ final class TaskbarIconStackView: NSStackView, AppIconViewDelegate {
         let location = sender.draggingLocation
         let dropIndex = TaskbarDragController.shared.indexForDrop(in: self, at: location)
 
-        if dropIndex != sourceIndex {
-            controller.movePinnedItem(from: sourceIndex, to: dropIndex)
-            dragSourceIndex = dropIndex
-        }
+        controller.movePinnedItem(from: sourceIndex, to: dropIndex)
+        dragSourceIndex = dropIndex
 
         return .move
     }
@@ -97,50 +103,16 @@ final class TaskbarIconStackView: NSStackView, AppIconViewDelegate {
         dragSourceIndex = nil
     }
 
-    // MARK: - AppIconViewDelegate
+    // MARK: - AppIconViewDelegate actions
 
     func appIconViewDidRequestActivate(_ view: AppIconView, item: AppItem) {
-
-        guard let running = NSWorkspace.shared.runningApplications.first(where: {
+        if let running = NSWorkspace.shared.runningApplications.first(where: {
             $0.bundleIdentifier == item.bundleIdentifier
-        }) else {
-            // App not running → launch it
+        }) {
+            running.activate(options: [.activateAllWindows])
+        } else {
             NSWorkspace.shared.open(item.bundleURL)
-            return
         }
-
-        // 🔥 FIX: Unminimize windows using Accessibility API
-        let appElement = AXUIElementCreateApplication(running.processIdentifier)
-
-        var value: AnyObject?
-        let result = AXUIElementCopyAttributeValue(
-            appElement,
-            kAXWindowsAttribute as CFString,
-            &value
-        )
-
-        if result == .success, let windows = value as? [AXUIElement] {
-            for window in windows {
-                var minimized: AnyObject?
-                if AXUIElementCopyAttributeValue(
-                    window,
-                    kAXMinimizedAttribute as CFString,
-                    &minimized
-                ) == .success,
-                   let isMinimized = minimized as? Bool,
-                   isMinimized == true {
-
-                    AXUIElementSetAttributeValue(
-                        window,
-                        kAXMinimizedAttribute as CFString,
-                        kCFBooleanFalse
-                    )
-                }
-            }
-        }
-
-        // 🔥 FIX: Modern activation API (macOS 14+ safe)
-        running.activate(options: [.activateAllWindows])
     }
 
     func appIconViewDidRequestPin(_ view: AppIconView, item: AppItem) {
@@ -148,6 +120,10 @@ final class TaskbarIconStackView: NSStackView, AppIconViewDelegate {
     }
 
     func appIconViewDidRequestUnpin(_ view: AppIconView, item: AppItem) {
+        // Prevent unpinning launcher
+        if item.bundleIdentifier == controller.lastLauncherBundleID {
+            return
+        }
         controller.unpinApp(bundleID: item.bundleIdentifier)
     }
 
@@ -155,24 +131,16 @@ final class TaskbarIconStackView: NSStackView, AppIconViewDelegate {
         if let running = NSWorkspace.shared.runningApplications.first(where: {
             $0.bundleIdentifier == item.bundleIdentifier
         }) {
-
             running.terminate()
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                if !running.isTerminated {
-                    running.forceTerminate()
-                }
-            }
         }
     }
 
+    // This was in your earlier version and is required by the protocol
     func appIconViewIsLauncher(_ view: AppIconView) -> Bool {
-        let launcherPath = TaskbarSettings.shared.launcherBundlePath
-        return view.item.bundleURL.path == launcherPath
+        return view.item.bundleIdentifier == controller.lastLauncherBundleID
     }
 
     func moveIcon(from oldIndex: Int, to newIndex: Int) {
         controller.movePinnedItem(from: oldIndex, to: newIndex)
     }
 }
-

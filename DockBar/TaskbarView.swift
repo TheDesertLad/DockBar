@@ -34,8 +34,11 @@ final class TaskbarView: NSView {
         addSubview(stackView)
         stackView.translatesAutoresizingMaskIntoConstraints = false
 
-        leadingConstraint = stackView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8)
-        trailingConstraint = stackView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8)
+        leadingConstraint =
+            stackView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8)
+
+        trailingConstraint =
+            stackView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8)
 
         NSLayoutConstraint.activate([
             leadingConstraint!,
@@ -48,7 +51,7 @@ final class TaskbarView: NSView {
         stackView.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
     }
 
-    // MARK: - Centering Logic
+    // MARK: - Observers
 
     private func setupObservers() {
         TaskbarItemsController.shared.$shouldCenter
@@ -58,6 +61,14 @@ final class TaskbarView: NSView {
             }
             .store(in: &cancellables)
     }
+
+    // MARK: - Public API for window
+
+    func reloadIcons() {
+        stackView.rebuildIcons()
+    }
+
+    // MARK: - Centering Logic
 
     private func updateAlignment(centered: Bool) {
         centerConstraint?.isActive = false
@@ -75,9 +86,22 @@ final class TaskbarView: NSView {
         layoutSubtreeIfNeeded()
     }
 
-    // MARK: - Taskbar Context Menu (empty space)
+    // MARK: - Hit Testing for App Icons
+
+    func runningApp(at point: NSPoint) -> NSRunningApplication? {
+        let localPoint = convert(point, to: stackView)
+        return stackView.runningApp(at: localPoint)
+    }
+
+    // MARK: - Right Click Handling (Empty Space Only)
 
     override func rightMouseDown(with event: NSEvent) {
+        let clickPoint = convert(event.locationInWindow, from: nil)
+
+        if runningApp(at: clickPoint) != nil {
+            return
+        }
+
         let menu = NSMenu()
 
         let activity = NSMenuItem(
@@ -110,7 +134,7 @@ final class TaskbarView: NSView {
     @objc private func openActivityMonitor() {
         if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.ActivityMonitor") {
             let config = NSWorkspace.OpenConfiguration()
-            NSWorkspace.shared.openApplication(at: url, configuration: config) { _, _ in }
+            NSWorkspace.shared.openApplication(at: url, configuration: config)
         }
     }
 
@@ -125,8 +149,10 @@ final class TaskbarView: NSView {
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        guard let pasteboard = sender.draggingPasteboard.propertyList(forType: .fileURL) as? String ??
-                sender.draggingPasteboard.string(forType: .fileURL) else {
+        guard let pasteboard =
+                sender.draggingPasteboard.propertyList(forType: .fileURL) as? String ??
+                sender.draggingPasteboard.string(forType: .fileURL)
+        else {
             return handleMultipleURLs(sender)
         }
 
@@ -138,9 +164,10 @@ final class TaskbarView: NSView {
     }
 
     private func handleMultipleURLs(_ sender: NSDraggingInfo) -> Bool {
-        guard let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] else {
-            return false
-        }
+        guard let urls =
+                sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL]
+        else { return false }
+
         handleDroppedURLs(urls, sender: sender)
         return true
     }
@@ -162,6 +189,7 @@ final class TaskbarView: NSView {
                     let clampedIndex = max(0, min(dropIndex, pinned.count))
                     pinned.insert((bundleID: id, path: appURL.path), at: clampedIndex)
                     PinnedAppsManager.shared.savePinnedApps(pinned)
+
                     TaskbarItemsController.shared.pinApp(bundleID: id, path: appURL.path)
                 }
             }
@@ -188,3 +216,4 @@ final class TaskbarView: NSView {
         return nil
     }
 }
+

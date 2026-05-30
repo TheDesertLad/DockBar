@@ -6,6 +6,9 @@ import Combine
 
 final class TaskbarWindow: NSWindow {
 
+    // Controller reference (set by TaskbarController)
+    weak var controller: TaskbarController?
+
     private let taskbarView = TaskbarView()
     private let visualEffect = NSVisualEffectView()
     private var cancellables = Set<AnyCancellable>()
@@ -29,6 +32,7 @@ final class TaskbarWindow: NSWindow {
 
         self.setFrame(frame, display: true)
         configureWindow()
+        bindItems()
         bindSettings()
     }
 
@@ -83,6 +87,19 @@ final class TaskbarWindow: NSWindow {
         }
     }
 
+    // MARK: - Bind items (finalItems → icons)
+
+    private func bindItems() {
+        TaskbarItemsController.shared.$finalItems
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.taskbarView.reloadIcons()
+            }
+            .store(in: &cancellables)
+    }
+
+    // MARK: - Settings Bindings
+
     private func bindSettings() {
         let settings = TaskbarSettings.shared
 
@@ -113,7 +130,6 @@ final class TaskbarWindow: NSWindow {
     }
 
     private func applyBlur(_ value: Double) {
-        // Map 0...100 to a few different materials (icons unaffected)
         let clamped = max(0, min(100, value))
 
         switch clamped {
@@ -130,4 +146,17 @@ final class TaskbarWindow: NSWindow {
 
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
+
+    // MARK: - Right Click Handling
+
+    override func rightMouseDown(with event: NSEvent) {
+        guard let controller = controller else { return }
+
+        let location = convertPoint(fromScreen: event.locationInWindow)
+
+        if let app = taskbarView.runningApp(at: location) {
+            controller.showContextMenu(for: app, at: location)
+        }
+    }
 }
+

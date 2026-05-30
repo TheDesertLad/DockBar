@@ -5,6 +5,7 @@ import Foundation
 import Combine
 
 class TaskbarSettings: ObservableObject {
+
     static let shared = TaskbarSettings()
 
     private let appearanceKey = "TaskbarAppearance"
@@ -34,40 +35,30 @@ class TaskbarSettings: ObservableObject {
     }
 
     private init() {
-        // Appearance
-        self.appearance = UserDefaults.standard.string(forKey: appearanceKey) ?? "System Preferences"
+        appearance = UserDefaults.standard.string(forKey: appearanceKey) ?? "System"
 
-        // Blur
         let savedBlur = UserDefaults.standard.double(forKey: blurKey)
-        self.blurAmount = savedBlur == 0 ? 50 : savedBlur
+        blurAmount = savedBlur == 0 ? 50 : savedBlur
 
-        // Launcher Enabled
-        self.launcherEnabled = UserDefaults.standard.object(forKey: launcherEnabledKey) as? Bool ?? true
+        launcherEnabled = UserDefaults.standard.object(forKey: launcherEnabledKey) as? Bool ?? true
 
-        // Layout Mode
-        self.layoutMode = UserDefaults.standard.string(forKey: layoutModeKey) ?? "Left"
+        layoutMode = UserDefaults.standard.string(forKey: layoutModeKey) ?? "Left"
 
-        // Launcher Path
         if let savedPath = UserDefaults.standard.string(forKey: launcherPathKey) {
-            self.launcherBundlePath = savedPath
+            launcherBundlePath = savedPath
         } else {
-            self.launcherBundlePath = TaskbarSettings.defaultLauncherPath()
-            UserDefaults.standard.set(self.launcherBundlePath, forKey: launcherPathKey)
+            launcherBundlePath = TaskbarSettings.defaultLauncherPath()
+            UserDefaults.standard.set(launcherBundlePath, forKey: launcherPathKey)
         }
     }
 
-    // MARK: - Default Launcher Detection
     static func defaultLauncherPath() -> String {
         let appsApp = "/System/Applications/Apps.app"
         let launchpadApp = "/System/Applications/Launchpad.app"
         let oldLaunchpadApp = "/System/Applications/Utilities/Launchpad.app"
 
-        if FileManager.default.fileExists(atPath: appsApp) {
-            return appsApp
-        }
-        if FileManager.default.fileExists(atPath: launchpadApp) {
-            return launchpadApp
-        }
+        if FileManager.default.fileExists(atPath: appsApp) { return appsApp }
+        if FileManager.default.fileExists(atPath: launchpadApp) { return launchpadApp }
         return oldLaunchpadApp
     }
 }

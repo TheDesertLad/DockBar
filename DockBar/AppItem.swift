@@ -4,17 +4,25 @@
 import AppKit
 
 struct AppItem: Identifiable, Equatable {
-    let id = UUID()
+
+    var id: String { bundleURL.path }   // UNIQUE PER APP PATH
 
     let bundleIdentifier: String
     var bundleURL: URL
-    var displayName: String
-    var icon: NSImage
+
+    var displayName: String {
+        FileManager.default.displayName(atPath: bundleURL.path)
+    }
+
+    var icon: NSImage {
+        let img = NSWorkspace.shared.icon(forFile: bundleURL.path)
+        img.size = NSSize(width: 40, height: 40)
+        return img
+    }
 
     var isPinned: Bool
     var isRunning: Bool
 
-    // MARK: - Initializer
     init(bundleIdentifier: String,
          bundleURL: URL,
          isPinned: Bool,
@@ -24,14 +32,13 @@ struct AppItem: Identifiable, Equatable {
         self.bundleURL = bundleURL
         self.isPinned = isPinned
         self.isRunning = isRunning
+    }
 
-        // Resolve display name
-        let name = FileManager.default.displayName(atPath: bundleURL.path)
-        self.displayName = name
-
-        // Resolve icon
-        let icon = NSWorkspace.shared.icon(forFile: bundleURL.path)
-        icon.size = NSSize(width: 40, height: 40)
-        self.icon = icon
+    // MARK: - Equatable (COMPARE PATH + PINNED/RUNNING)
+    static func == (lhs: AppItem, rhs: AppItem) -> Bool {
+        return lhs.bundleURL.path == rhs.bundleURL.path &&
+               lhs.isPinned == rhs.isPinned &&
+               lhs.isRunning == rhs.isRunning
     }
 }
+

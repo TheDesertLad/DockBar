@@ -3,13 +3,16 @@
 
 import AppKit
 
-class TaskbarController {
+class TaskbarController: NSObject {
     private var window: TaskbarWindow?
+    private var currentRightClickedApp: NSRunningApplication?
 
-    init() {
-        // Create the window on the main screen
+    override init() {
+        super.init()
+
         let screen = NSScreen.main ?? NSScreen.screens.first!
         window = TaskbarWindow(screen: screen)
+        window?.controller = self
 
         NotificationCenter.default.addObserver(
             self,
@@ -27,8 +30,6 @@ class TaskbarController {
         guard let window = window else { return }
 
         let screen = NSScreen.main ?? NSScreen.screens.first!
-
-        // Recompute the frame manually (same logic as TaskbarWindow.init)
         let height: CGFloat = 48
         let newFrame = NSRect(
             x: screen.frame.minX,
@@ -39,5 +40,30 @@ class TaskbarController {
 
         window.setFrame(newFrame, display: true)
     }
-}
 
+    // MARK: - Context Menu
+
+    func showContextMenu(for app: NSRunningApplication, at point: NSPoint) {
+        currentRightClickedApp = app
+
+        let menu = NSMenu()
+        menu.addItem(
+            withTitle: "Quit",
+            action: #selector(quitSelectedApp),
+            keyEquivalent: ""
+        )
+
+        for item in menu.items {
+            item.target = self
+        }
+
+        if let contentView = window?.contentView {
+            NSMenu.popUpContextMenu(menu, with: NSApp.currentEvent!, for: contentView)
+        }
+    }
+
+    @objc private func quitSelectedApp(_ sender: Any?) {
+        guard let app = currentRightClickedApp else { return }
+        app.terminate()   // 🔹 normal Quit only
+    }
+}
